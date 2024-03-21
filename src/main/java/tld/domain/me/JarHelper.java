@@ -7,11 +7,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PushbackInputStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.jar.JarEntry;
@@ -36,22 +38,30 @@ class JarHelper {
         if (source.isDirectory())
             throw new IOException("Embedding metadata requires a jar as source");
 
-        try (JarOutputStream os = new JarOutputStream(
+        try (JarOutputStream out = new JarOutputStream(
                 new BufferedOutputStream(new FileOutputStream(target)))) {
             Files.walkFileTree(tmpdir.toPath(), new SimpleFileVisitor<Path>() {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String relPath = tmpdir.toPath().relativize(file).toString();
                     // System.out.println("Found file: " + relPath);
 
-                    // TODO Send the byte array into the metadataadder, get the new array from it,
-                    // and write this one to disk
+                    out.putNextEntry(new JarEntry(relPath));
+                    // We need to "peek" at the first 4 bytes
+                    try (PushbackInputStream in = new PushbackInputStream(new FileInputStream(file.toFile()), 4)) {
+                        byte[] magicBytes = in.readNBytes(4);
+                        in.unread(magicBytes);
 
-                    os.putNextEntry(new JarEntry(relPath));
-                    try (FileInputStream in = new FileInputStream(file.toFile())) {
-                        // TODO: In -> ASM -> Out instead of In -> Out
-                        in.transferTo(os);
+                        // All class files begin with the magic bytes 0xCAFEBABE
+                        if (Arrays.equals(magicBytes,
+                                new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE })) {
+                            MetadataAdder adder = new MetadataAdder(in.readAllBytes());
+                            out.write(adder.add());
+                        } else {
+                            // Not a classfile, just stream the entire contents directly
+                            in.transferTo(out);
+                        }
                     }
-                    os.closeEntry();
+                    out.closeEntry();
                     return FileVisitResult.CONTINUE;
                 }
 
@@ -63,10 +73,11 @@ class JarHelper {
                         return FileVisitResult.CONTINUE;
 
                     System.out.println("Found directory: " + relPath);
-                    os.putNextEntry(new JarEntry(relPath));
-                    os.closeEntry();
+                    out.putNextEntry(new JarEntry(relPath));
+                    out.closeEntry();
                     return FileVisitResult.CONTINUE;
                 }
+
             });
         }
     }

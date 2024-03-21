@@ -1,110 +1,114 @@
 package tld.domain.me;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
 import org.objectweb.asm.*;
 
-/*
- * From JVMS Ch. 4.7 on class file attributes:
+/**
+ * A class for adding metadata to class files.
+ *
+ * We override quite a few methods here, but this is for good reasons:
  * 
- * All attributes have the following general format:
- * ```
- * attribute_info {
- *   u2 attribute_name_index;
- *   u4 attribute_length;
- *   u1 info[attribute_length];
- * }
- * ```
- * [...]
- * The value of the attribute_length item indicates the length of the
- * subsequent information in bytes. The length does not include the initial
- * six bytes that contain the attribute_name_index and attribute_length
- * items.
+ * 1. Annotations are ignored by the JVM if the classfile is below version 1.5
+ * (also called version 5). We thus override the main visit method to provide a
+ * way of upgrading this version to 1.5 - the minimum supported one. Note that
+ * v1.5 was released in September 2004, so we most likely won't run into this.
+ * See https://docs.oracle.com/javase/specs/jvms/se19/html/jvms-4.html#jvms-4.1
+ *
+ * 2. We are not allowed to just call "visitAnnotation" from the `visit`
+ * function and then `super.visit`, as this could lead to annotations being
+ * visited before things such as outerClass which is not allowed.
+ *
+ * 3. We want to make sure we don't add any duplicate annotations, so instead of
+ * just adding the annotation unconditionally in `visitAnnotation`, we go
+ * through all current annotations and take note of whether ours already exists.
+ * Then we override all methods that may be called _after_ visitAnnotation and,
+ * unless already added, add it here. This ensures that our annotation is added
+ * at the correct stage while avoiding accidental duplication.
+ *
+ * Thanks to the ASM Manual (pp. 74-75) for providing this example.
  */
+class AnnotationAdder extends ClassVisitor {
+    private String annotationDesc;
+    private boolean isAnnotationPresent;
 
-class MavenPackageAttribute extends Attribute {
-    private String value;
-
-    // Create a named custom attribute
-    MavenPackageAttribute(String value) {
-        super("Maven Package Name");
-        this.value = value;
-    }
-
-    public String getValue() {
-        return this.value;
-    }
-
-    @Override
-    protected Attribute read(ClassReader cr, int off, int len,
-            char[] buf, int codeOff, Label[] labels) {
-        return new MavenPackageAttribute(cr.readUTF8(off, buf));
-    }
-
-    @Override
-    protected ByteVector write(ClassWriter cw, byte[] code, int len,
-            int maxStack, int maxLocals) {
-        return new ByteVector().putShort(cw.newUTF8(value));
-    }
-}
-
-class MavenSHAAttribute extends Attribute {
-    private String value;
-
-    // Create a named custom attribute
-    MavenSHAAttribute(String value) {
-        super("Maven jar SHA1");
-        this.value = value;
-    }
-
-    public String getValue() {
-        return this.value;
-    }
-
-    @Override
-    protected Attribute read(ClassReader cr, int off, int len,
-            char[] buf, int codeOff, Label[] labels) {
-        return new MavenSHAAttribute(cr.readUTF8(off, buf));
-    }
-
-    @Override
-    protected ByteVector write(ClassWriter cw, byte[] code, int len,
-            int maxStack, int maxLocals) {
-        return new ByteVector().putShort(cw.newUTF8(value));
-    }
-}
-
-/*
- * A ClassVisitor can be seen as an event filter (ASM manual, p. 14)
- * Methods must be called in the following order:
- * visit visitSource? visitOuterClass? ( visitAnnotation | visitAttribute )*
- * ( visitInnerClass | visitField | visitMethod )*
- * visitEnd
- */
-class AttributeVisitor extends ClassVisitor {
-    /*
-     * We pass in a ClassWriter as the visitor here (it's a subclass of it that
-     * "serialises"/writes whatever it comes across). Any calls not overridden
-     * will just be delegated to `cv` instead.
-     *
-     * This effectively means (or can be thought of as) that each part of the
-     * class file that we encounter is just "forwarded" to the writer (using
-     * copy optimisations, if I understand this correctly) except for the end
-     * of the class file, where we insert (a) new attribute(s) before
-     * signalling to the writer that we've reached the end.
-     */
-    public AttributeVisitor(ClassVisitor cv) {
+    public AnnotationAdder(ClassVisitor cv, String annotationDesc) {
         super(Opcodes.ASM9, cv);
+        this.annotationDesc = annotationDesc;
     }
 
-    /*
-     * Write (a) new attribute(s) to the resulting class file before exiting.
+    // TODO: Error here by default but provide an "automatic upgrade" option, unless
+    // we can "prove" that upgrading is non-destructive. If so, default to upgrading
+    @Override
+    public void visit(int version, int access, String name,
+            String signature, String superName, String[] interfaces) {
+        int v = (version & 0xFF) < Opcodes.V1_5 ? Opcodes.V1_5 : version;
+        cv.visit(v, access, name, signature, superName, interfaces);
+    }
+
+    /**
+     * Figure out whether the annotation has already been added.
+     */
+    @Override
+    public AnnotationVisitor visitAnnotation(String desc,
+            boolean visible) {
+        if (visible && desc.equals(annotationDesc)) {
+            isAnnotationPresent = true;
+        }
+        return cv.visitAnnotation(desc, visible);
+    }
+
+    /**
+     * If we're supposed to add an annotation and it hasn't already been done, do it
+     * before visiting the inner class
+     */
+    @Override
+    public void visitInnerClass(String name, String outerName,
+            String innerName, int access) {
+        addAnnotation();
+        cv.visitInnerClass(name, outerName, innerName, access);
+    }
+
+    /**
+     * If we're supposed to add an annotation and it hasn't already been done, do it
+     * before visiting fields.
+     */
+    @Override
+    public FieldVisitor visitField(int access, String name, String desc,
+            String signature, Object value) {
+        addAnnotation();
+        return cv.visitField(access, name, desc, signature, value);
+    }
+
+    /**
+     * If we're supposed to add an annotation and it hasn't already been done, do it
+     * before visiting methods.
+     */
+    @Override
+    public MethodVisitor visitMethod(int access, String name,
+            String desc, String signature, String[] exceptions) {
+        addAnnotation();
+        return cv.visitMethod(access, name, desc, signature, exceptions);
+    }
+
+    /**
+     * If we're supposed to add an annotation and it hasn't already been done, do it
+     * before finishing up.
      */
     @Override
     public void visitEnd() {
-        cv.visitAttribute(new MavenPackageAttribute("a.very.good.package"));
-        cv.visitAttribute(new MavenSHAAttribute("fake1337hash"));
+        addAnnotation();
         cv.visitEnd();
+    }
+
+    private void addAnnotation() {
+        if (!isAnnotationPresent) {
+            AnnotationVisitor av = cv.visitAnnotation(annotationDesc, true);
+            if (av != null) {
+                av.visit("testAnnotationField", "It works :D");
+                av.visitEnd();
+            }
+            isAnnotationPresent = true;
+        }
     }
 }
 
@@ -124,8 +128,8 @@ public class MetadataAdder {
     }
 
     public byte[] add() {
-        System.out.println("Attempting to add attribute...");
-        reader.accept(new AttributeVisitor(writer), 0);
+        System.out.println("Attempting to add annotation...");
+        reader.accept(new AnnotationAdder(writer, "Classport"), 0);
         return writer.toByteArray();
     }
 }
