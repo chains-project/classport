@@ -128,7 +128,6 @@ public class MetadataAdder {
     }
 
     public byte[] add() {
-        System.out.println("Attempting to add annotation...");
         reader.accept(new AnnotationAdder(writer, "Classport"), 0);
         return writer.toByteArray();
     }

@@ -48,9 +48,14 @@ public class EmbeddingMojo
 
     public void execute() throws MojoExecutionException, MojoFailureException {
         Set<Artifact> afs = project.getArtifacts();
-        getLog().info("Found " + afs.size() + " artefacts.");
-        // TODO recreate the maven repo directory structure so that we have someplace to
-        // put the new jars
+        var log = getLog();
+        log.info("Found " + afs.size() + " artefacts.");
+
+        File localrepoRoot = new File("classport-files");
+        // There's no way to differentiate between "the directory already exists"
+        // and "failed to create the directory" without checking for existance too
+        // so just allow overwriting as that's probably what we want anyway (?)
+        localrepoRoot.mkdir();
         for (Artifact a : afs) {
             try {
                 HashMap<String, String> metadataPairs = new HashMap<>();
@@ -58,21 +63,44 @@ public class EmbeddingMojo
                 // - URL
                 // - Parent info
                 // - Checksums
+                // Also TODO: Can we programmatically populate this based on the
+                // annotation interface?
                 metadataPairs.put("GroupId", a.getGroupId());
                 metadataPairs.put("ArtifactId", a.getArtifactId());
                 metadataPairs.put("Version", a.getVersion());
-                JarHelper pkgr = new JarHelper(a.getFile(), new File("/tmp/classport-" + a.getArtifactId()));
-                pkgr.embed("classport", metadataPairs); // TODO right now, this just unpacks and repacks the
-                                                        // jar
+
+                String artefactPath = getArtefactPath(a);
+                JarHelper pkgr = new JarHelper(a.getFile(),
+                        new File(localrepoRoot + "/" + artefactPath),
+                        /* overwrite target if exists */ true);
+                log.info("Modifying " + a.getArtifactId());
+                pkgr.embed(metadataPairs);
             } catch (IOException e) {
                 System.err.println(e);
             }
-
-            getLog().info("Found dependency: "
-                    + a.getGroupId()
-                    + ":" + a.getArtifactId()
-                    + ":" + a.getVersion()
-                    + " (" + a.getFile() + ")");
         }
+
+        log.info("Embedding complete");
+    }
+
+    /**
+     * Get an artefact's path based on its properties.
+     *
+     * @see <a href="https://maven.apache.org/repositories/layout.html">Maven
+     *      docs on repository structure</a>
+     */
+    private String getArtefactPath(Artifact a) {
+        String classifier = a.getClassifier();
+        if (classifier == null)
+            classifier = "";
+        else
+            classifier = "-" + classifier;
+
+        return String.format("%s/%s/%s/%s-%s%s.%s",
+                a.getGroupId().replace('.', '/'),
+                a.getArtifactId(),
+                a.getBaseVersion(),
+                a.getArtifactId(), a.getVersion(), classifier,
+                "jar" /* TODO support more extensions */);
     }
 }

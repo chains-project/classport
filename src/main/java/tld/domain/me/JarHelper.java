@@ -23,27 +23,34 @@ import java.util.jar.JarOutputStream;
 class JarHelper {
     private final File source;
     private final File target;
+    private final boolean overwrite;
 
     public JarHelper(File source, File target) {
-        this.source = source;
-        this.target = target;
+        this(source, target, false);
     }
 
-    public void embed(String prefix, HashMap<String, String> kvMetadata) throws IOException {
+    public JarHelper(File source, File target, boolean overwrite) {
+        this.source = source;
+        this.target = target;
+        this.overwrite = overwrite;
+    }
+
+    public void embed(HashMap<String, String> kvMetadata) throws IOException {
         File tmpdir = Files.createTempDirectory("classport").toFile();
         extractTo(tmpdir);
 
-        if (target.exists())
+        if (target.exists() && !overwrite)
             throw new IOException("File or directory " + target + " already exists");
         if (source.isDirectory())
             throw new IOException("Embedding metadata requires a jar as source");
+
+        target.getParentFile().mkdirs();
 
         try (JarOutputStream out = new JarOutputStream(
                 new BufferedOutputStream(new FileOutputStream(target)))) {
             Files.walkFileTree(tmpdir.toPath(), new SimpleFileVisitor<Path>() {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String relPath = tmpdir.toPath().relativize(file).toString();
-                    // System.out.println("Found file: " + relPath);
 
                     out.putNextEntry(new JarEntry(relPath));
                     // We need to "peek" at the first 4 bytes
@@ -72,7 +79,6 @@ class JarHelper {
                     if (dir.equals(tmpdir.toPath()))
                         return FileVisitResult.CONTINUE;
 
-                    System.out.println("Found directory: " + relPath);
                     out.putNextEntry(new JarEntry(relPath));
                     out.closeEntry();
                     return FileVisitResult.CONTINUE;
