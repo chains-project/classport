@@ -42,28 +42,32 @@ Using Java annotations. Why? Well...
 
 In priority order, from highest to lowest.
 
-- [ ] Replicate the maven directory structure so that we can point the build
+- [x] Replicate the maven directory structure so that we can point the build
       process to this directory instead of the default `~/.m2` one by using the
       `-Dmaven.repo.local` command-line argument.
 - [ ] Figure out how to get the following metadata:
   - [ ] Checksums
-  - [ ] Parent info
+  - [x] Parent info (Maven's
+        [dependencyGraphBuilder](https://github.com/apache/maven-dependency-plugin/blob/c9e488ba11516aa5b4be22fedd5b109ab11fa32c/src/main/java/org/apache/maven/plugins/dependency/tree/TreeMojo.java#L239)
+        maybe, see
+        [this StackOverflow answer](https://stackoverflow.com/a/35380442))
   - [ ] URLs
-- [ ] Create an actual interface for the annotation. Currently, we are able to
-      add annotations but since they don't actually exist and can't be loaded by
-      the JVM, they won't be available using runtime reflection. Note that
-      creating it isn't the problem (the interface/annotation itself is very
-      simple) - it's where to place it so we can be sure that it's available at
-      runtime. **Solvable in an easier way: if we require the project to be run
-      with an agent, have this agent dynamically create the annotation
-      interface**, i.e. in `premain`: generate the interface/annotation, load it
-      with the same name as the one used in the annotation itself (I don't
-      _think_ the name matters too much as long as it adheres to standards, the
-      [JLS](https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html#jls-6.7)
-      says "The fully qualified name of a top level class or top level interface
-      that is declared in an unnamed package is the simple name of the class or
-      interface"). At this point, the metadata _should_ be available using
-      reflection.
+- [ ] Create an actual interface for the annotation.
+  - Currently, we are able to add annotations but since they don't actually
+    exist and can't be loaded by the JVM, they won't be available using runtime
+    reflection.
+  - Since the program will always be accompanied by an agent, having the
+    annotation interface in the agent's classpath should be enough, as long as
+    we use its fully qualified name when embedding it.
+  - If this turns out not to be enough, the agent can be annotated as well,
+    forcing the class to be loaded into the JVM before the rest of the program
+    executes.
+  - As for naming, see the
+    [JLS](https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html#jls-6.7):
+    "The fully qualified name of a top level class or top level interface that
+    is declared in an unnamed package is the simple name of the class or
+    interface"). At this point, the metadata _should_ be available using
+    reflection.
 - [ ] Create a Java agent to run it, as it sees all classes being loaded and can
       thus build the SBOM?
 - [ ] [Optional] Use a
