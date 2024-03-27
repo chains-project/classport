@@ -5,7 +5,7 @@ import java.security.ProtectionDomain;
 import java.util.HashMap;
 
 /**
- * An classport officer, ready to check the classports of any and all incoming
+ * A classport agent, ready to check the classports of any and all incoming
  * classes.
  */
 public class ClassportAgent {
@@ -21,15 +21,15 @@ public class ClassportAgent {
                     ProtectionDomain domain,
                     byte[] buffer) {
                 if (typeIfLoaded != null) {
-                    ClassportInfo ann = typeIfLoaded.getAnnotation(ClassportInfo.class);
-                    if (ann != null)
-                        sbom.put("Name", ann.name());
-                } else {
-                    System.out.println("Class " + name + " was reloaded");
+                    ClassportInfo classInfo = typeIfLoaded.getAnnotation(ClassportInfo.class);
+                    if (classInfo != null) {
+                        sbom.put(classInfo.name(), classInfo.group());
+                        System.out.println("[Agent] Loaded class '" + classInfo.name() + "'.");
+                    }
                 }
 
-                System.out.println("Entire map:\n" + sbom);
-                return null;
+                // TODO: Is there a difference between returning null or buffer?
+                return buffer;
             }
         });
     }
