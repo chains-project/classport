@@ -1,6 +1,9 @@
-package tld.domain.me;
+package tld.domain.me.classport.plugin;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import tld.domain.me.classport.commons.ClassportInfo;
+
 import org.objectweb.asm.*;
 
 /**
@@ -28,12 +31,12 @@ import org.objectweb.asm.*;
  * Thanks to the ASM Manual (pp. 74-75) for providing this example.
  */
 class AnnotationAdder extends ClassVisitor {
-    private String annotationDesc;
+    private String annotationType;
     private boolean isAnnotationPresent;
 
-    public AnnotationAdder(ClassVisitor cv, String annotationDesc) {
+    public AnnotationAdder(ClassVisitor cv, String annotationType) {
         super(Opcodes.ASM9, cv);
-        this.annotationDesc = annotationDesc;
+        this.annotationType = annotationType;
     }
 
     // TODO: Error here by default but provide an "automatic upgrade" option, unless
@@ -49,12 +52,12 @@ class AnnotationAdder extends ClassVisitor {
      * Figure out whether the annotation has already been added.
      */
     @Override
-    public AnnotationVisitor visitAnnotation(String desc,
+    public AnnotationVisitor visitAnnotation(String type,
             boolean visible) {
-        if (visible && desc.equals(annotationDesc)) {
+        if (visible && type.equals(annotationType)) {
             isAnnotationPresent = true;
         }
-        return cv.visitAnnotation(desc, visible);
+        return cv.visitAnnotation(type, visible);
     }
 
     /**
@@ -102,9 +105,16 @@ class AnnotationAdder extends ClassVisitor {
 
     private void addAnnotation() {
         if (!isAnnotationPresent) {
-            AnnotationVisitor av = cv.visitAnnotation(annotationDesc, true);
+            AnnotationVisitor av = cv.visitAnnotation(annotationType, true);
             if (av != null) {
-                av.visit("testAnnotationField", "It works :D");
+                try {
+                    for (Method m : Class.forName(annotationType).getDeclaredMethods()) {
+                        av.visit(m.getName(), "value for " + m.getName());
+                    }
+                } catch (ClassNotFoundException e) {
+                    // No class found. Why?
+                    System.err.println("Unable to find annotation '" + annotationType + "'");
+                }
                 av.visitEnd();
             }
             isAnnotationPresent = true;
@@ -115,8 +125,10 @@ class AnnotationAdder extends ClassVisitor {
 public class MetadataAdder {
     ClassReader reader;
     ClassWriter writer;
+    Class<?> annotationClass;
 
     public MetadataAdder(byte[] bytes) throws IOException {
+        this.annotationClass = ClassportInfo.class;
         reader = new ClassReader(bytes);
         /*
          * Keep a reference to the reader to enable copying optimisations (see
@@ -128,7 +140,7 @@ public class MetadataAdder {
     }
 
     public byte[] add() {
-        reader.accept(new AnnotationAdder(writer, "Classport"), 0);
+        reader.accept(new AnnotationAdder(writer, annotationClass.getName()), 0);
         return writer.toByteArray();
     }
 }

@@ -1,4 +1,4 @@
-package tld.domain.me;
+package tld.domain.me.classport.plugin;
 
 import org.apache.maven.artifact.Artifact;
 

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>tld.domain.me</groupId>
+  <artifactId>classport</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>Classport</name>
+  <description>Embeds supply-chain metadata in class files, allowing it to be read at runtime.</description>
+  <url>https://github.com/chains-project/classport</url>
+  <inceptionYear>2024</inceptionYear>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>danielwis</id>
+      <name>Daniel Williams</name>
+      <email>daniel_williams@live.com</email>
+      <organization>KTH Royal Institute of Technology</organization>
+    </developer>
+  </developers>
+
+  <modules>
+    <module>classport-commons</module>
+    <module>maven-plugin</module>
+    <module>classport-agent</module>
+  </modules>
+
+  <scm>
+    <connection>scm:git:https://github.com/chains-project/classport/</connection>
+    <url>https://github.com/chains-project/classport.git</url>
+  </scm>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+</project>

@@ -2,20 +2,31 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>tld.domain.me</groupId>
+  <parent>
+    <groupId>tld.domain.me</groupId>
+    <artifactId>classport</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
   <artifactId>classport-maven-plugin</artifactId>
   <packaging>maven-plugin</packaging>
-  <version>0.0.1-SNAPSHOT</version>
 
   <properties>
     <maven.compiler.target>21</maven.compiler.target>
     <maven.compiler.source>21</maven.compiler.source>
   </properties>
 
-  <name>classport-maven-plugin Maven Mojo</name>
-  <url>https://tld.domain.me</url>
+  <name>Classport Maven Plugin</name>
+  <url>${project.parent.url}</url>
 
   <dependencies>
+    <!-- The annotation to embed -->
+    <dependency>
+      <groupId>tld.domain.me</groupId>
+      <artifactId>classport-commons</artifactId>
+      <version>${project.parent.version}</version>
+    </dependency>
+
     <!-- Embedding -->
     <dependency>
         <groupId>org.ow2.asm</groupId>
