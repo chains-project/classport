@@ -13,7 +13,6 @@ public class ClassportAgent {
     private static HashMap<String, String> sbom;
 
     public static void premain(String argument, Instrumentation instrumentation) {
-        System.out.println("Loading interface class " + ClassportInfo.class.getName() + "...");
         instrumentation.addTransformer(new ClassFileTransformer() {
             @Override
             public byte[] transform(Module module,
@@ -22,22 +21,42 @@ public class ClassportAgent {
                     Class<?> typeIfLoaded,
                     ProtectionDomain domain,
                     byte[] buffer) {
-                if (typeIfLoaded != null) {
-                    ClassportInfo classInfo = typeIfLoaded.getAnnotation(ClassportInfo.class);
-                    if (classInfo != null) {
-                        sbom.put(classInfo.name(), classInfo.group());
-                        System.out.println("[Agent] Loaded class '" + classInfo.name() + "'.");
-                        System.out.println("[Agent] Entire map: " + sbom);
-                    }
+                if (typeIfLoaded == null) {
+                    // TODO: Use ASM to parse out the annotation values and keep an "in-memory SBOM"
+                    // System.out.println("[Agent] Loaded class '" + name + "'.");
+
+                    /*
+                    // Debugging to find which proxy class is generated to implement ClassportInfo
+                    if (name.contains("jdk/proxy")) {
+                        try {
+                            Files.write(Path.of("/tmp/" + name.replace("/", ".")), buffer);
+                        } catch (IOException e) {
+                            System.err.println(e);
+                        }
+                    } */
+                } else {
+                    System.out.println("[Agent] Re(loaded|defined) class '" +
+                            typeIfLoaded.getName() + "'");
                 }
 
-                // Returns: a well-formed class file buffer (the result of the transform), or
-                // null if no transform is performed
-                //
-                // See
-                // https://docs.oracle.com/javase/8/docs/api/java/lang/instrument/ClassFileTransformer.html#transform-java.lang.ClassLoader-java.lang.String-java.lang.Class-java.security.ProtectionDomain-byte:A-
+                // We never transform the class, so just return null unconditionally
                 return null;
             }
         });
+
+        System.out.println("Adding shutdown hook...");
+
+        Thread printingHook = new Thread(() -> {
+            Class<?>[] classes = instrumentation.getAllLoadedClasses();
+            if (classes.length > 0) {
+                System.out.println("\033[1mLoaded classes:\033[0m");
+                for (Class<?> cls : classes) {
+                    ClassportInfo ann = cls.getAnnotation(ClassportInfo.class);
+                    if (ann != null)
+                        System.out.println("- " + ann.name() + " (" + ann.group() + ", version " + ann.version() + ")");
+                }
+            }
+        });
+        Runtime.getRuntime().addShutdownHook(printingHook);
     }
 }
