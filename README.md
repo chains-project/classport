@@ -52,7 +52,7 @@ In priority order, from highest to lowest.
         maybe, see
         [this StackOverflow answer](https://stackoverflow.com/a/35380442))
   - [ ] URLs
-- [ ] Create an actual interface for the annotation.
+- [x] Create an actual interface for the annotation.
   - Currently, we are able to add annotations but since they don't actually
     exist and can't be loaded by the JVM, they won't be available using runtime
     reflection.

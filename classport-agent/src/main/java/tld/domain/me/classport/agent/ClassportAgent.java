@@ -23,17 +23,6 @@ public class ClassportAgent {
                     byte[] buffer) {
                 if (typeIfLoaded == null) {
                     // TODO: Use ASM to parse out the annotation values and keep an "in-memory SBOM"
-                    // System.out.println("[Agent] Loaded class '" + name + "'.");
-
-                    /*
-                    // Debugging to find which proxy class is generated to implement ClassportInfo
-                    if (name.contains("jdk/proxy")) {
-                        try {
-                            Files.write(Path.of("/tmp/" + name.replace("/", ".")), buffer);
-                        } catch (IOException e) {
-                            System.err.println(e);
-                        }
-                    } */
                 } else {
                     System.out.println("[Agent] Re(loaded|defined) class '" +
                             typeIfLoaded.getName() + "'");
