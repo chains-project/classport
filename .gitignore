@@ -1,0 +1,8 @@
+target/
+*.class
+
+# jdtls/eclipse stuff
+.classpath
+.factorypath
+.project
+.settings/
