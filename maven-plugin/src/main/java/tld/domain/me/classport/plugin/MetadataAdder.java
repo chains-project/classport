@@ -31,12 +31,12 @@ import org.objectweb.asm.*;
  * Thanks to the ASM Manual (pp. 74-75) for providing this example.
  */
 class AnnotationAdder extends ClassVisitor {
-    private String annotationType;
+    private Class<?> annotationClass;
     private boolean isAnnotationPresent;
 
-    public AnnotationAdder(ClassVisitor cv, String annotationType) {
+    public AnnotationAdder(ClassVisitor cv, Class<?> annotationClass) {
         super(Opcodes.ASM9, cv);
-        this.annotationType = annotationType;
+        this.annotationClass = annotationClass;
     }
 
     // TODO: Error here by default but provide an "automatic upgrade" option, unless
@@ -54,7 +54,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public AnnotationVisitor visitAnnotation(String type,
             boolean visible) {
-        if (visible && type.equals(annotationType)) {
+        if (visible && type.equals(annotationClass.getName())) {
             isAnnotationPresent = true;
         }
         return cv.visitAnnotation(type, visible);
@@ -105,15 +105,11 @@ class AnnotationAdder extends ClassVisitor {
 
     private void addAnnotation() {
         if (!isAnnotationPresent) {
-            AnnotationVisitor av = cv.visitAnnotation(annotationType, true);
+            String internalName = annotationClass.descriptorString();
+            AnnotationVisitor av = cv.visitAnnotation(internalName, true);
             if (av != null) {
-                try {
-                    for (Method m : Class.forName(annotationType).getDeclaredMethods()) {
-                        av.visit(m.getName(), "value for " + m.getName());
-                    }
-                } catch (ClassNotFoundException e) {
-                    // No class found. Why?
-                    System.err.println("Unable to find annotation '" + annotationType + "'");
+                for (Method m : annotationClass.getDeclaredMethods()) {
+                    av.visit(m.getName(), "value for " + m.getName());
                 }
                 av.visitEnd();
             }
@@ -140,7 +136,7 @@ public class MetadataAdder {
     }
 
     public byte[] add() {
-        reader.accept(new AnnotationAdder(writer, annotationClass.getName()), 0);
+        reader.accept(new AnnotationAdder(writer, annotationClass), 0);
         return writer.toByteArray();
     }
 }
