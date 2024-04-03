@@ -65,9 +65,9 @@ public class EmbeddingMojo
                 // - Checksums
                 // Also TODO: Can we programmatically populate this based on the
                 // annotation interface?
-                metadataPairs.put("GroupId", a.getGroupId());
-                metadataPairs.put("ArtifactId", a.getArtifactId());
-                metadataPairs.put("Version", a.getVersion());
+                metadataPairs.put("group", a.getGroupId());
+                metadataPairs.put("artefact", a.getArtifactId());
+                metadataPairs.put("version", a.getVersion());
 
                 String artefactPath = getArtefactPath(a);
                 JarHelper pkgr = new JarHelper(a.getFile(),
@@ -76,7 +76,7 @@ public class EmbeddingMojo
                 log.info("Modifying " + a.getArtifactId());
                 pkgr.embed(metadataPairs);
             } catch (IOException e) {
-                System.err.println(e);
+                log.error(e);
             }
         }
 

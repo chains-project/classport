@@ -42,7 +42,8 @@ public class ClassportAgent {
                 for (Class<?> cls : classes) {
                     ClassportInfo ann = cls.getAnnotation(ClassportInfo.class);
                     if (ann != null)
-                        System.out.println("- " + ann.name() + " (" + ann.group() + ", version " + ann.version() + ")");
+                        System.out.println("- " + cls.getName() + " (" + ann.artefact() + ":" + ann.group() + ", version "
+                                + ann.version() + ")");
                 }
             }
         });

@@ -40,9 +40,9 @@ class JarHelper {
         extractTo(tmpdir);
 
         if (target.exists() && !overwrite)
-            throw new IOException("File or directory " + target + " already exists");
+            throw new IOException("File or directory " + target + " already exists. Skipping embed...");
         if (source.isDirectory())
-            throw new IOException("Embedding metadata requires a jar as source");
+            throw new IOException("Embedding metadata requires a jar as source. Skipping embed...");
 
         target.getParentFile().mkdirs();
 
@@ -62,7 +62,7 @@ class JarHelper {
                         if (Arrays.equals(magicBytes,
                                 new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE })) {
                             MetadataAdder adder = new MetadataAdder(in.readAllBytes());
-                            out.write(adder.add());
+                            out.write(adder.add(kvMetadata));
                         } else {
                             // Not a classfile, just stream the entire contents directly
                             in.transferTo(out);

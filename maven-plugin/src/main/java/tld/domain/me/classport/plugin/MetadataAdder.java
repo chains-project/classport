@@ -2,6 +2,11 @@ package tld.domain.me.classport.plugin;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import tld.domain.me.classport.commons.ClassportInfo;
 
 import org.objectweb.asm.*;
@@ -33,10 +38,12 @@ import org.objectweb.asm.*;
 class AnnotationAdder extends ClassVisitor {
     private Class<?> annotationClass;
     private boolean isAnnotationPresent;
+    private final HashMap<String, String> metadata;
 
-    public AnnotationAdder(ClassVisitor cv, Class<?> annotationClass) {
+    public AnnotationAdder(ClassVisitor cv, Class<?> annotationClass, HashMap<String, String> metadata) {
         super(Opcodes.ASM9, cv);
         this.annotationClass = annotationClass;
+        this.metadata = metadata;
     }
 
     // TODO: Error here by default but provide an "automatic upgrade" option, unless
@@ -67,7 +74,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public void visitInnerClass(String name, String outerName,
             String innerName, int access) {
-        addAnnotation();
+        addAnnotation(metadata);
         cv.visitInnerClass(name, outerName, innerName, access);
     }
 
@@ -78,7 +85,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public FieldVisitor visitField(int access, String name, String desc,
             String signature, Object value) {
-        addAnnotation();
+        addAnnotation(metadata);
         return cv.visitField(access, name, desc, signature, value);
     }
 
@@ -89,7 +96,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public MethodVisitor visitMethod(int access, String name,
             String desc, String signature, String[] exceptions) {
-        addAnnotation();
+        addAnnotation(metadata);
         return cv.visitMethod(access, name, desc, signature, exceptions);
     }
 
@@ -99,17 +106,18 @@ class AnnotationAdder extends ClassVisitor {
      */
     @Override
     public void visitEnd() {
-        addAnnotation();
+        addAnnotation(metadata);
         cv.visitEnd();
     }
 
-    private void addAnnotation() {
+    private void addAnnotation(HashMap<String, String> metadata) {
         if (!isAnnotationPresent) {
             String internalName = annotationClass.descriptorString();
             AnnotationVisitor av = cv.visitAnnotation(internalName, true);
             if (av != null) {
                 for (Method m : annotationClass.getDeclaredMethods()) {
-                    av.visit(m.getName(), "value for " + m.getName());
+                    String val = metadata.get(m.getName());
+                    av.visit(m.getName(), val);
                 }
                 av.visitEnd();
             }
@@ -135,8 +143,19 @@ public class MetadataAdder {
         writer = new ClassWriter(reader, 0);
     }
 
-    public byte[] add() {
-        reader.accept(new AnnotationAdder(writer, annotationClass), 0);
+    public byte[] add(HashMap<String, String> metadata) throws IllegalArgumentException {
+        List<String> annotationKeys = Arrays.stream(annotationClass.getDeclaredMethods()).map(m -> m.getName())
+                .collect(Collectors.toList());
+        for (String k : annotationKeys)
+            if (!metadata.containsKey(k) || metadata.get(k) == null)
+                throw new IllegalArgumentException("Metadata does not contain a valid entry for '" + k
+                        + "'. Got: " + metadata.get(k));
+        for (String k : metadata.keySet())
+            if (!annotationKeys.contains(k))
+                throw new IllegalArgumentException(
+                        "Metadata contains an entry for '" + k + " which does not seem to exist in " + annotationClass);
+
+        reader.accept(new AnnotationAdder(writer, annotationClass, metadata), 0);
         return writer.toByteArray();
     }
 }
