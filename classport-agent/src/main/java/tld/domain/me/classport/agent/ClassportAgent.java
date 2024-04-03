@@ -10,7 +10,7 @@ import tld.domain.me.classport.commons.ClassportInfo;
  * classes.
  */
 public class ClassportAgent {
-    private static HashMap<String, String> sbom;
+    private static final HashMap<String, HashMap<String, Object>> sbom = new HashMap<>();
 
     public static void premain(String argument, Instrumentation instrumentation) {
         instrumentation.addTransformer(new ClassFileTransformer() {
@@ -22,7 +22,14 @@ public class ClassportAgent {
                     ProtectionDomain domain,
                     byte[] buffer) {
                 if (typeIfLoaded == null) {
-                    // TODO: Use ASM to parse out the annotation values and keep an "in-memory SBOM"
+                    HashMap<String, Object> contents = AnnotationReader.getAnnotationValues(buffer,
+                            ClassportInfo.class);
+                    if (!contents.isEmpty()) {
+                        sbom.put(name, contents);
+                        System.out.println("Loading class " + name + " (from " +
+                                contents.get("group") + ":" + contents.get("artefact") +
+                                ", version " + contents.get("version") + ")");
+                    }
                 } else {
                     System.out.println("[Agent] Re(loaded|defined) class '" +
                             typeIfLoaded.getName() + "'");
@@ -36,16 +43,7 @@ public class ClassportAgent {
         System.out.println("Adding shutdown hook...");
 
         Thread printingHook = new Thread(() -> {
-            Class<?>[] classes = instrumentation.getAllLoadedClasses();
-            if (classes.length > 0) {
-                System.out.println("\033[1mLoaded classes:\033[0m");
-                for (Class<?> cls : classes) {
-                    ClassportInfo ann = cls.getAnnotation(ClassportInfo.class);
-                    if (ann != null)
-                        System.out.println("- " + cls.getName() + " (" + ann.artefact() + ":" + ann.group() + ", version "
-                                + ann.version() + ")");
-                }
-            }
+            System.out.println("All loaded dependency classes: " + sbom);
         });
         Runtime.getRuntime().addShutdownHook(printingHook);
     }

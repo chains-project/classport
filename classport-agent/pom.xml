@@ -29,6 +29,28 @@
       <artifactId>classport-commons</artifactId>
       <version>${project.parent.version}</version>
     </dependency>
+
+    <!-- Embedding -->
+    <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm</artifactId>
+        <version>9.6</version>
+    </dependency>
+    <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-commons</artifactId>
+        <version>9.6</version>
+    </dependency>
+    <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-tree</artifactId>
+        <version>9.6</version>
+    </dependency>
+    <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-util</artifactId>
+        <version>9.6</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -46,12 +68,12 @@
                 </manifestEntries>
               </transformer>
             </transformers>
-            <!-- <relocations>
+            <relocations>
               <relocation>
                 <pattern>org.objectweb.asm</pattern>
-                <shadedPattern>rtf.org.objectweb.asm</shadedPattern>
+                <shadedPattern>org.shaded.asm</shadedPattern>
               </relocation>
-            </relocations> -->
+            </relocations>
           </configuration>
           <executions>
             <execution>
