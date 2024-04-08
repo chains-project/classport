@@ -68,8 +68,10 @@ In priority order, from highest to lowest.
     is declared in an unnamed package is the simple name of the class or
     interface"). At this point, the metadata _should_ be available using
     reflection.
-- [ ] Create a Java agent to run it, as it sees all classes being loaded and can
+- [x] Create a Java agent to run it, as it sees all classes being loaded and can
       thus build the SBOM?
+  - [ ] Create an object instance of the `ClassportInfo` class to have "safe"
+        metadata access methods?
 - [ ] [Optional] Use a
       [fat jar](https://stackoverflow.com/questions/19150811/what-is-a-fat-jar)?
       This would allow us to bundle everything into one but might be a lot
