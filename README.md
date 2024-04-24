@@ -1,44 +1,41 @@
 # Classport
 
-## Comparing JAR files
+## About
 
-To compare two different JAR files, ignoring date and time, run the following
-command (where `jar1` and `jar2` are the paths to the respective JARs):
+Classport is a way of embedding supply chain-related metadata in class files
+using an annotation, contained in the `classport.commons` package. This
+repository contains an example implementation in the form of a Maven plugin that
+modifies the JAR files during the build process. These can then be packaged
+together with the application, or just added to the class path in place of the
+"regular" versions of the class files.
 
-```sh
-diff \
-    <(unzip -l $jar1 | awk '{print $1, $4}') \
-    <(unzip -l $jar2 | awk '{print $1, $4}') \
-    --report-identical-files
-```
+## Usage
 
-## Implementation
+### General
 
-Using Java annotations. Why? Well...
+The `classport` goal will retrieve a list of project dependencies and their
+corresponding JAR files, embed the annotation into all class files within each
+JAR, and recreate what can be seen as a dependency-only Maven local repository
+in the `classport-files` directory. The JAR files from within there can then be
+included in the class path with the `-cp` flag as per usual.
 
-> Annotations, a form of metadata, provide data about a program that is not part
-> of the program itself. Annotations have no direct effect on the operation of
-> the code they annotate.
->
-> Annotations have a number of uses, among them:
->
-> - Information for the compiler — Annotations can be used by the compiler to
-  > detect errors or suppress warnings.
-> - Compile-time and deployment-time processing — Software tools can process
-  > annotation information to generate code, XML files, and so forth.
-> - Runtime processing — Some annotations are available to be examined at
-  > runtime.
->
-> This lesson explains where annotations can be used, how to apply annotations,
-> what predefined annotation types are available in the Java Platform, Standard
-> Edition (Java SE API), how type annotations can be used in conjunction with
-> pluggable type systems to write code with stronger type checking, and how to
-> implement repeating annotations.
->
-> -- <cite>
-> [Oracle](https://docs.oracle.com/javase/tutorial/java/annotations/)</cite>
+### With an Uber-JAR
 
-### TODOs
+With plugins such as `maven-shade`, a project can be packaged into a jar
+together with its dependencies. This facilitates distribution as the resulting
+JAR is self-contained. To use `classport` in this case, we want to ensure that
+the class files included in the Uber-JAR are the ones in `classport-files`. The
+easiest way to do this (but perhaps not the only way?) is to just set the Maven
+local repository to the `classport-files` directory manually using the
+`-Dmaven.repo.local` flag and have Maven download the "regular" version of the
+dependencies to there. Since Maven will not overwrite existing dependency JARs
+and `classport` will, it doesn't matter if the `classport` goal is executed
+before or after the rest of the dependencies are downloaded - the modified
+classes will be the ones used regardless. However, executing the `classport`
+goal first is usually easier as the process becomes `classport -> package`
+instead of `<download-deps> -> classport -> package`.
+
+## TODOs
 
 In priority order, from highest to lowest.
 
@@ -47,10 +44,7 @@ In priority order, from highest to lowest.
       `-Dmaven.repo.local` command-line argument.
 - [ ] Figure out how to get the following metadata:
   - [ ] Checksums
-  - [x] Parent info (Maven's
-        [dependencyGraphBuilder](https://github.com/apache/maven-dependency-plugin/blob/c9e488ba11516aa5b4be22fedd5b109ab11fa32c/src/main/java/org/apache/maven/plugins/dependency/tree/TreeMojo.java#L239)
-        maybe, see
-        [this StackOverflow answer](https://stackoverflow.com/a/35380442))
+  - [x] Parent info
   - [ ] URLs
 - [x] Create an actual interface for the annotation.
   - Currently, we are able to add annotations but since they don't actually
