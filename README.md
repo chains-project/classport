@@ -37,36 +37,21 @@ instead of `<download-deps> -> classport -> package`.
 
 ## TODOs
 
-In priority order, from highest to lowest.
-
-- [x] Replicate the maven directory structure so that we can point the build
-      process to this directory instead of the default `~/.m2` one by using the
-      `-Dmaven.repo.local` command-line argument.
-- [ ] Figure out how to get the following metadata:
-  - [ ] Checksums
-  - [x] Parent info
-  - [ ] URLs
-- [x] Create an actual interface for the annotation.
-  - Currently, we are able to add annotations but since they don't actually
-    exist and can't be loaded by the JVM, they won't be available using runtime
-    reflection.
-  - Since the program will always be accompanied by an agent, having the
-    annotation interface in the agent's classpath should be enough, as long as
-    we use its fully qualified name when embedding it.
-  - If this turns out not to be enough, the agent can be annotated as well,
-    forcing the class to be loaded into the JVM before the rest of the program
-    executes.
-  - As for naming, see the
-    [JLS](https://docs.oracle.com/javase/specs/jls/se21/html/jls-6.html#jls-6.7):
-    "The fully qualified name of a top level class or top level interface that
-    is declared in an unnamed package is the simple name of the class or
-    interface"). At this point, the metadata _should_ be available using
-    reflection.
-- [x] Create a Java agent to run it, as it sees all classes being loaded and can
-      thus build the SBOM?
-  - [ ] Create an object instance of the `ClassportInfo` class to have "safe"
-        metadata access methods?
-- [ ] [Optional] Use a
-      [fat jar](https://stackoverflow.com/questions/19150811/what-is-a-fat-jar)?
-      This would allow us to bundle everything into one but might be a lot
-      harder than just running the executable in a "modified way".
+- [x] Compare the classes logged with "java -verbose:class" and check for
+      discrepancies (just basic manual checks for now)
+  - There are some, not yet sure if this is because of shading, embedding errors
+    or some oversight.
+- [x] Optimise the plugin a bit. It's not really a bottleneck, but there are
+      some trivial things that can be done such as not re-embedding info if two
+      packages depend on the same artefact.
+- [x] Insert even more supply chain information, making sure that dependency
+      relationships and all other required SBOM attributes are present
+- [x] Investigate errors
+- [ ] Have the agent generate a "proper" (but simple) SBOM
+  - How to do this if we can't get a graceful shutdown? (Graphhopper)
+- [ ] (Optionally) make two separate annotations: one that is runtime-visible
+      and one that's not. The non-visible will likely be the
+      "default"/recommended version.
+- [ ] Thoroughly compare the generated SBOM to the "ground truth" emitted by
+      "java -verbose:class". (Can this be considered ground truth or are there
+      things that don't show up, e.g. classes depended upon by our transformer?)
