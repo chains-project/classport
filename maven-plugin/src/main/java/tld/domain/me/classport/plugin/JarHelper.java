@@ -15,10 +15,11 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+
+import tld.domain.me.classport.commons.ClassportInfo;
 
 class JarHelper {
     private final File source;
@@ -38,7 +39,7 @@ class JarHelper {
         this.overwrite = overwrite;
     }
 
-    public void embed(HashMap<String, String> kvMetadata) throws IOException {
+    public void embed(ClassportInfo metadata) throws IOException {
         File tmpdir = Files.createTempDirectory("classport").toFile();
         extractTo(tmpdir);
 
@@ -63,7 +64,7 @@ class JarHelper {
 
                         if (Arrays.equals(firstBytes, magicBytes)) {
                             MetadataAdder adder = new MetadataAdder(in.readAllBytes());
-                            out.write(adder.add(kvMetadata));
+                            out.write(adder.add(metadata));
                         } else {
                             // Not a classfile, just stream the entire contents directly
                             in.transferTo(out);

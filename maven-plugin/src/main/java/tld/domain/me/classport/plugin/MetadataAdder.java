@@ -1,11 +1,8 @@
 package tld.domain.me.classport.plugin;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.stream.Collectors;
 
 import tld.domain.me.classport.commons.ClassportInfo;
 
@@ -36,14 +33,12 @@ import org.objectweb.asm.*;
  * Thanks to the ASM Manual (pp. 74-75) for providing this example.
  */
 class AnnotationAdder extends ClassVisitor {
-    private Class<?> annotationClass;
+    private ClassportInfo annotationInstance;
     private boolean isAnnotationPresent;
-    private final HashMap<String, String> metadata;
 
-    public AnnotationAdder(ClassVisitor cv, Class<?> annotationClass, HashMap<String, String> metadata) {
+    public AnnotationAdder(ClassVisitor cv, ClassportInfo annotationInstance) {
         super(Opcodes.ASM9, cv);
-        this.annotationClass = annotationClass;
-        this.metadata = metadata;
+        this.annotationInstance = annotationInstance;
     }
 
     // TODO: Error here by default but provide an "automatic upgrade" option, unless
@@ -61,7 +56,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public AnnotationVisitor visitAnnotation(String type,
             boolean visible) {
-        if (visible && type.equals(annotationClass.getName())) {
+        if (visible && type.equals(annotationInstance.annotationType().getName())) {
             isAnnotationPresent = true;
         }
         return cv.visitAnnotation(type, visible);
@@ -74,7 +69,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public void visitInnerClass(String name, String outerName,
             String innerName, int access) {
-        addAnnotation(metadata);
+        addAnnotation();
         cv.visitInnerClass(name, outerName, innerName, access);
     }
 
@@ -85,7 +80,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public FieldVisitor visitField(int access, String name, String desc,
             String signature, Object value) {
-        addAnnotation(metadata);
+        addAnnotation();
         return cv.visitField(access, name, desc, signature, value);
     }
 
@@ -96,7 +91,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public MethodVisitor visitMethod(int access, String name,
             String desc, String signature, String[] exceptions) {
-        addAnnotation(metadata);
+        addAnnotation();
         return cv.visitMethod(access, name, desc, signature, exceptions);
     }
 
@@ -106,20 +101,31 @@ class AnnotationAdder extends ClassVisitor {
      */
     @Override
     public void visitEnd() {
-        addAnnotation(metadata);
+        addAnnotation();
         cv.visitEnd();
     }
 
-    private void addAnnotation(HashMap<String, String> metadata) {
+    private void addAnnotation() {
         if (!isAnnotationPresent) {
-            String internalName = annotationClass.descriptorString();
+            String internalName = annotationInstance.annotationType().descriptorString();
             AnnotationVisitor av = cv.visitAnnotation(internalName, true);
             if (av != null) {
-                for (Method m : annotationClass.getDeclaredMethods()) {
-                    String val = metadata.get(m.getName());
-                    av.visit(m.getName(), val);
+                try {
+                    for (Method m : annotationInstance.annotationType().getDeclaredMethods()) {
+                        String valueName = m.getName();
+                        var val = m.invoke(annotationInstance);
+                        if (val instanceof String[]) {
+                            String[] elems = (String[]) val;
+                            AnnotationVisitor arrayVisitor = av.visitArray(valueName);
+                            for (String elem : elems)
+                                arrayVisitor.visit(null, elem);
+                        } else
+                            av.visit(valueName, val);
+                    }
+                    av.visitEnd();
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+                    System.err.println("Error adding metadata: " + e);
                 }
-                av.visitEnd();
             }
             isAnnotationPresent = true;
         }
@@ -143,19 +149,8 @@ public class MetadataAdder {
         writer = new ClassWriter(reader, 0);
     }
 
-    public byte[] add(HashMap<String, String> metadata) throws IllegalArgumentException {
-        List<String> annotationKeys = Arrays.stream(annotationClass.getDeclaredMethods()).map(m -> m.getName())
-                .collect(Collectors.toList());
-        for (String k : annotationKeys)
-            if (!metadata.containsKey(k) || metadata.get(k) == null)
-                throw new IllegalArgumentException("Metadata does not contain a valid entry for '" + k
-                        + "'. Got: " + metadata.get(k));
-        for (String k : metadata.keySet())
-            if (!annotationKeys.contains(k))
-                throw new IllegalArgumentException(
-                        "Metadata contains an entry for '" + k + " which does not seem to exist in " + annotationClass);
-
-        reader.accept(new AnnotationAdder(writer, annotationClass, metadata), 0);
+    public byte[] add(ClassportInfo metadata) throws IllegalArgumentException {
+        reader.accept(new AnnotationAdder(writer, metadata), 0);
         return writer.toByteArray();
     }
 }

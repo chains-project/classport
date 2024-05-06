@@ -12,5 +12,5 @@ public @interface ClassportInfo {
 
     String version();
 
-    String parentId();
+    String[] childIds();
 }

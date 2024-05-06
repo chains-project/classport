@@ -1,6 +1,6 @@
 package tld.domain.me.classport.plugin;
 
-import org.apache.maven.artifact.Artifact;
+import tld.domain.me.classport.commons.*;
 
 /*
  * Copyright 2001-2005 The Apache Software Foundation.
@@ -18,6 +18,7 @@ import org.apache.maven.artifact.Artifact;
  * limitations under the License.
  */
 
+import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
@@ -36,7 +37,6 @@ import org.apache.maven.project.ProjectBuildingRequest;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -89,45 +89,62 @@ public class EmbeddingMojo
             buildingRequest.setProject(project);
             rootNode = dependencyCollectorBuilder.collectDependencyGraph(buildingRequest, null);
 
-            embedMetadata(rootNode, localrepoRoot, completeArtifactMap);
+            Map<String, Boolean> processed = completeArtifactMap.keySet().stream()
+                    .collect(Collectors.toMap(id -> id, val -> false));
+            embedMetadata(rootNode, localrepoRoot, completeArtifactMap, processed);
 
             getLog().info("Embedding complete");
         } catch (DependencyCollectorBuilderException exception) {
-            throw new MojoExecutionException("Cannot build project dependency graph", exception);
+            throw new MojoExecutionException("Unable to build project dependency graph", exception);
         }
     }
 
     // TODO: Refactor to embed first, recursively call later
-    private void embedMetadata(DependencyNode node, File localrepoRoot, Map<String, Artifact> afs) {
+    private void embedMetadata(DependencyNode node, File localrepoRoot, Map<String, Artifact> afs,
+            Map<String, Boolean> processed) {
         node.getChildren().forEach(c -> {
-            Artifact a = afs.get(c.getArtifact().getId());
-            getLog().info("Processing " + a.getArtifactId());
+            String fullId = c.getArtifact().getId();
+            if (processed.get(fullId) == null) {
+                String similar = processed.keySet().stream().filter(id -> id.contains(c.getArtifact().getArtifactId()))
+                        .collect(Collectors.joining(", "));
+                getLog().warn(
+                        "Unable to locate " + c.getArtifact().getId() + " (required by " + c.getParent().getArtifact()
+                                + ") in depedency list.");
+                getLog().warn("This may happen when versions are specified as ranges, as the dependency graph builder "
+                        + "will interpret <version>[a.b.c,d)</version> as 'version == a.b.c' rather than 'a.b.c <= version < d'. ");
+                getLog().warn("If this is the case, and the version requirement is met by one of these dependencies, "
+                        + "this will be used instead: " + similar);
+                return;
+            }
+
+            Artifact a = afs.get(fullId);
+            if (processed.get(fullId)) {
+                getLog().debug("Already processed " + fullId + ", skipping");
+                return;
+            }
+
             try {
-                HashMap<String, String> metadataPairs = new HashMap<>();
-                // TODO More SBOM stuff here
-                // - URL
-                // - Checksums
-                // Also TODO: Can we programmatically populate this based on the
-                // annotation interface?
-                metadataPairs.put("id", a.getId());
-                metadataPairs.put("group", a.getGroupId());
-                metadataPairs.put("artefact", a.getArtifactId());
-                metadataPairs.put("version", a.getVersion());
-                metadataPairs.put("parentId", c.getParent() == null ? null : c.getParent().getArtifact().getId());
+                ClassportInfo meta = new ClassportHelper().getInstance(
+                        fullId,
+                        a.getArtifactId(),
+                        a.getGroupId(),
+                        a.getVersion(),
+                        c.getChildren().stream().map(dep -> dep.getArtifact().getId())
+                                .collect(Collectors.toList()).toArray(String[]::new));
 
                 String artefactPath = getArtefactPath(a);
                 JarHelper pkgr = new JarHelper(a.getFile(),
                         new File(localrepoRoot + "/" + artefactPath),
                         /* overwrite target if exists? */ true);
-                getLog().info("Embedding metadata for " + a.getArtifactId());
-                pkgr.embed(metadataPairs);
+                getLog().info("Embedding metadata for " + fullId);
+                pkgr.embed(meta);
 
+                processed.put(fullId, true);
                 // Recurse on current node to get their children
-                embedMetadata(c, localrepoRoot, afs);
+                embedMetadata(c, localrepoRoot, afs, processed);
             } catch (IOException e) {
                 getLog().error(e);
             }
-
         });
     }
 
