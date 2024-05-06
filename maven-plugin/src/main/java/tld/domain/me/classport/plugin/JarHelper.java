@@ -25,6 +25,9 @@ class JarHelper {
     private final File target;
     private final boolean overwrite;
 
+    // All class files begin with the magic bytes 0xCAFEBABE
+    private static final byte[] magicBytes = new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE };
+
     public JarHelper(File source, File target) {
         this(source, target, false);
     }
@@ -55,12 +58,10 @@ class JarHelper {
                     out.putNextEntry(new JarEntry(relPath));
                     // We need to "peek" at the first 4 bytes
                     try (PushbackInputStream in = new PushbackInputStream(new FileInputStream(file.toFile()), 4)) {
-                        byte[] magicBytes = in.readNBytes(4);
-                        in.unread(magicBytes);
+                        byte[] firstBytes = in.readNBytes(4);
+                        in.unread(firstBytes);
 
-                        // All class files begin with the magic bytes 0xCAFEBABE
-                        if (Arrays.equals(magicBytes,
-                                new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE })) {
+                        if (Arrays.equals(firstBytes, magicBytes)) {
                             MetadataAdder adder = new MetadataAdder(in.readAllBytes());
                             out.write(adder.add(kvMetadata));
                         } else {
@@ -83,7 +84,6 @@ class JarHelper {
                     out.closeEntry();
                     return FileVisitResult.CONTINUE;
                 }
-
             });
         }
     }
@@ -93,13 +93,12 @@ class JarHelper {
     }
 
     public void extractTo(File target) throws IOException {
-        // sourcePath is a .jar, extract it to destDir
         try (JarFile jf = new JarFile(source)) {
             Enumeration<JarEntry> entries = jf.entries();
 
             if (entries != null) {
                 if (!target.isDirectory()) {
-                    if (!target.mkdir()) {
+                    if (!target.mkdirs()) {
                         throw new IOException("Failed to create root directory at " + target);
                     }
                 }
@@ -107,10 +106,18 @@ class JarHelper {
                 while (entries.hasMoreElements()) {
                     JarEntry entry = entries.nextElement();
                     File entryFile = new File(target, entry.getName());
+
+                    // The entry's parent may not exist,, as .jar/.zip files may contain nested
+                    // directories without the "middle" ones (i.e. `a/b/c` can exist without `a/b`)
+                    if (!entryFile.getParentFile().isDirectory())
+                        entryFile.getParentFile().mkdirs();
+
+                    // Invariant: We always have a directory for this entry to be stored in
                     if (entry.isDirectory()) {
-                        if (!entryFile.mkdir()) {
+                        // Short-circuit if trying to create a directory that already exists
+                        // Required since `a/b.ext` might come before `a` in the .jar/.zip
+                        if (!entryFile.exists() && !entryFile.mkdir())
                             throw new IOException("Failed to create inner directory at " + entryFile);
-                        }
                     } else {
                         try (InputStream in = jf.getInputStream(entry);
                                 OutputStream out = new FileOutputStream(entryFile)) {
