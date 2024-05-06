@@ -1,17 +1,52 @@
 package tld.domain.me.classport.agent;
 
 import org.objectweb.asm.*;
+
+import tld.domain.me.classport.commons.ClassportInfo;
+
 import java.util.HashMap;
 import java.lang.annotation.Annotation;
 
 public class AnnotationReader {
-    // TODO: Return a ClassportInfo object here instead (we no likey using `get`
-    // operations to extract things)
-    public static HashMap<String, Object> getAnnotationValues(byte[] bytes, Class<? extends Annotation> cls) {
+    public static ClassportInfo getAnnotationValues(byte[] bytes) {
         ClassReader r = new ClassReader(bytes);
-        AnnotationChecker an = new AnnotationChecker(cls);
+        AnnotationChecker an = new AnnotationChecker();
         r.accept(an, 0);
-        return an.getAnnotationValues();
+        HashMap<String, Object> classportValues = an.getAnnotationValues();
+        if (classportValues.isEmpty())
+            return null;
+
+        return new ClassportInfo() {
+            @Override
+            public Class<? extends Annotation> annotationType() {
+                return ClassportInfo.class;
+            }
+
+            @Override
+            public String id() {
+                return classportValues.get("id").toString();
+            }
+
+            @Override
+            public String artefact() {
+                return classportValues.get("artefact").toString();
+            }
+
+            @Override
+            public String group() {
+                return classportValues.get("group").toString();
+            }
+
+            @Override
+            public String version() {
+                return classportValues.get("version").toString();
+            }
+
+            @Override
+            public String[] childIds() {
+                return (String[]) classportValues.get("childIds");
+            }
+        };
     }
 
     // The following classes are static as they don't require any field info from
@@ -21,9 +56,9 @@ public class AnnotationReader {
         private Class<?> annotationClass;
         private final HashMap<String, Object> annotationValues = new HashMap<>();
 
-        AnnotationChecker(Class<?> annotationClass) {
+        AnnotationChecker() {
             super(Opcodes.ASM9);
-            this.annotationClass = annotationClass;
+            this.annotationClass = ClassportInfo.class;
         }
 
         public AnnotationVisitor visitAnnotation(String desc, boolean vis) {

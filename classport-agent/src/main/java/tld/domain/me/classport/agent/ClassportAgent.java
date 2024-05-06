@@ -10,7 +10,7 @@ import tld.domain.me.classport.commons.ClassportInfo;
  * classes.
  */
 public class ClassportAgent {
-    private static final HashMap<String, HashMap<String, Object>> sbom = new HashMap<>();
+    private static final HashMap<String, ClassportInfo> sbom = new HashMap<>();
 
     public static void premain(String argument, Instrumentation instrumentation) {
         instrumentation.addTransformer(new ClassFileTransformer() {
@@ -22,13 +22,11 @@ public class ClassportAgent {
                     ProtectionDomain domain,
                     byte[] buffer) {
                 if (typeIfLoaded == null) {
-                    HashMap<String, Object> contents = AnnotationReader.getAnnotationValues(buffer,
-                            ClassportInfo.class);
-                    if (!contents.isEmpty()) {
-                        sbom.put(name, contents);
-                        System.out.println("Loading class " + name + " (from " +
-                                contents.get("group") + ":" + contents.get("artefact") +
-                                ", version " + contents.get("version") + ")");
+                    ClassportInfo ann = AnnotationReader.getAnnotationValues(buffer);
+                    if (ann != null) {
+                        sbom.put(name, ann);
+                        System.out.println("Loading class " + name + " (from " + ann.group() + ":" + ann.artefact()
+                                + ", version " + ann.version() + ")");
                     }
                 } else {
                     System.out.println("[Agent] Re(loaded|defined) class '" +
