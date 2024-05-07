@@ -15,9 +15,12 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.Map;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 
 import tld.domain.me.classport.commons.ClassportInfo;
 
@@ -39,6 +42,40 @@ class JarHelper {
         this.overwrite = overwrite;
     }
 
+    // We handle MANIFEST.MF separately. See
+    // https://docs.oracle.com/javase/8/docs/technotes/guides/jar/jar.html#Signed_JAR_File
+    private boolean isSignatureFile(String filename) {
+        return filename.startsWith("META-INF/SIG-") ||
+                filename.startsWith("META-INF/")
+                        && (filename.endsWith(".SF") || filename.endsWith(".RSA") || filename.endsWith(".DSA"));
+    }
+
+    // Slightly revised version of `buildUnsignedManifest` from Maven's JarSigner:
+    // https://github.com/apache/maven-jarsigner/blob/9bc044710ff5c13bc540992a9a998453f213fd1b/src/main/java/org/apache/maven/shared/jarsigner/JarSignerUtil.java
+    private Manifest getUnsignedManifest(Manifest m) {
+        Manifest unsigned = new Manifest(m);
+        unsigned.getEntries().clear();
+
+        for (Map.Entry<String, Attributes> manifestEntry : m.getEntries().entrySet()) {
+            Attributes oldAttributes = manifestEntry.getValue();
+            Attributes newAttributes = new Attributes();
+
+            for (Map.Entry<Object, Object> attributesEntry : oldAttributes.entrySet()) {
+                String attributeKey = String.valueOf(attributesEntry.getKey());
+                if (!attributeKey.endsWith("-Digest")) {
+                    newAttributes.put(attributesEntry.getKey(), attributesEntry.getValue());
+                }
+            }
+
+            // Only retain entries with non-digest attributes
+            if (!newAttributes.isEmpty()) {
+                unsigned.getEntries().put(manifestEntry.getKey(), newAttributes);
+            }
+        }
+
+        return unsigned;
+    }
+
     public void embed(ClassportInfo metadata) throws IOException {
         File tmpdir = Files.createTempDirectory("classport").toFile();
         extractTo(tmpdir);
@@ -56,20 +93,33 @@ class JarHelper {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String relPath = tmpdir.toPath().relativize(file).toString();
 
-                    out.putNextEntry(new JarEntry(relPath));
-                    // We need to "peek" at the first 4 bytes
-                    try (PushbackInputStream in = new PushbackInputStream(new FileInputStream(file.toFile()), 4)) {
-                        byte[] firstBytes = in.readNBytes(4);
-                        in.unread(firstBytes);
+                    // Signed JARs won't work since we edit the contents, so remove signatures
+                    if (isSignatureFile(relPath))
+                        return FileVisitResult.CONTINUE;
 
-                        if (Arrays.equals(firstBytes, magicBytes)) {
-                            MetadataAdder adder = new MetadataAdder(in.readAllBytes());
-                            out.write(adder.add(metadata));
-                        } else {
-                            // Not a classfile, just stream the entire contents directly
-                            in.transferTo(out);
+                    out.putNextEntry(new JarEntry(relPath));
+
+                    // Remove signature attributes from manifest file
+                    if (relPath.equals("META-INF/MANIFEST.MF")) {
+                        Manifest manifest = new Manifest(new FileInputStream(file.toFile()));
+                        Manifest unsigned = getUnsignedManifest(manifest);
+                        unsigned.write(out);
+                    } else {
+                        // We need to "peek" at the first 4 bytes to see if it's a classfile or not
+                        try (PushbackInputStream in = new PushbackInputStream(new FileInputStream(file.toFile()), 4)) {
+                            byte[] firstBytes = in.readNBytes(4);
+                            in.unread(firstBytes);
+
+                            if (Arrays.equals(firstBytes, magicBytes)) {
+                                MetadataAdder adder = new MetadataAdder(in.readAllBytes());
+                                out.write(adder.add(metadata));
+                            } else {
+                                // Not a classfile, just stream the entire contents directly
+                                in.transferTo(out);
+                            }
                         }
                     }
+
                     out.closeEntry();
                     return FileVisitResult.CONTINUE;
                 }
