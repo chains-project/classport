@@ -136,10 +136,9 @@ class AnnotationAdder extends ClassVisitor {
 public class MetadataAdder {
     ClassReader reader;
     ClassWriter writer;
-    Class<?> annotationClass;
+    final Class<?> annotationClass = ClassportInfo.class;
 
     public MetadataAdder(byte[] bytes) throws IOException {
-        this.annotationClass = ClassportInfo.class;
         reader = new ClassReader(bytes);
         /*
          * Keep a reference to the reader to enable copying optimisations (see
