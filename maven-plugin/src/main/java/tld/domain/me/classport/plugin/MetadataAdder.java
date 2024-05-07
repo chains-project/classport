@@ -119,6 +119,7 @@ class AnnotationAdder extends ClassVisitor {
                             AnnotationVisitor arrayVisitor = av.visitArray(valueName);
                             for (String elem : elems)
                                 arrayVisitor.visit(null, elem);
+                            arrayVisitor.visitEnd();
                         } else
                             av.visit(valueName, val);
                     }
