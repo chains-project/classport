@@ -22,7 +22,8 @@ public class ClassportAgent {
             System.out.println("\tartefact: " + meta.artefact());
             System.out.println("\tgroup: " + meta.group());
             System.out.println("\tversion: " + meta.version());
-            if (meta.childIds() != null) {
+            String[] dependencies = meta.childIds();
+            if (dependencies != null && dependencies.length > 0) {
                 System.out.println("\tdependencies:");
 
                 for (String dep : meta.childIds())

@@ -4,6 +4,7 @@ import org.objectweb.asm.*;
 
 import tld.domain.me.classport.commons.ClassportInfo;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.lang.annotation.Annotation;
 
@@ -84,6 +85,23 @@ public class AnnotationReader {
         @Override
         public void visit(String name, Object value) {
             annotationValues.put(name, value);
+        }
+
+        @Override
+        public AnnotationVisitor visitArray(String name) {
+            return new AnnotationVisitor(Opcodes.ASM9, av) {
+                ArrayList<String> childIds = new ArrayList<>();
+
+                @Override
+                public void visit(String name, Object value) {
+                    childIds.add(String.valueOf(value));
+                }
+
+                @Override
+                public void visitEnd() {
+                    annotationValues.put(name, childIds.toArray(new String[0]));
+                }
+            };
         }
     }
 }
