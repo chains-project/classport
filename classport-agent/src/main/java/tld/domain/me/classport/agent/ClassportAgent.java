@@ -3,6 +3,8 @@ package tld.domain.me.classport.agent;
 import java.lang.instrument.*;
 import java.security.ProtectionDomain;
 import java.util.HashMap;
+import java.util.Map;
+
 import tld.domain.me.classport.commons.ClassportInfo;
 
 /**
@@ -12,6 +14,23 @@ import tld.domain.me.classport.commons.ClassportInfo;
 public class ClassportAgent {
     private static final HashMap<String, ClassportInfo> sbom = new HashMap<>();
 
+    private static void printSBOM(Map<String, ClassportInfo> sbom) {
+        for (Map.Entry<String, ClassportInfo> e : sbom.entrySet()) {
+            ClassportInfo meta = e.getValue();
+            System.out.println(e.getKey().replace('/', '.'));
+            System.out.println("\tid: " + meta.id());
+            System.out.println("\tartefact: " + meta.artefact());
+            System.out.println("\tgroup: " + meta.group());
+            System.out.println("\tversion: " + meta.version());
+            if (meta.childIds() != null) {
+                System.out.println("\tdependencies:");
+
+                for (String dep : meta.childIds())
+                    System.out.println("\t\t" + dep);
+            }
+        }
+    }
+
     public static void premain(String argument, Instrumentation instrumentation) {
         // Force classes to load early.
         //
@@ -20,7 +39,7 @@ public class ClassportAgent {
         // which requires PrintStream [...]
         System.out.println("[Agent] Adding shutdown hook...");
         Thread printingHook = new Thread(() -> {
-            System.out.println("All loaded dependency classes: " + sbom);
+            printSBOM(sbom);
         });
         Runtime.getRuntime().addShutdownHook(printingHook);
 
