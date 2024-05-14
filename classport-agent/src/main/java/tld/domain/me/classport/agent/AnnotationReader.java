@@ -66,7 +66,7 @@ public class AnnotationReader {
             if (desc.equals(annotationClass.descriptorString())) {
                 return new AnnotationParser(annotationValues);
             }
-            return cv.visitAnnotation(desc, vis);
+            return super.visitAnnotation(desc, vis);
         }
 
         public HashMap<String, Object> getAnnotationValues() {
