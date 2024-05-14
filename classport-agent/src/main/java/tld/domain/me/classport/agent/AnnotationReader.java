@@ -62,6 +62,7 @@ public class AnnotationReader {
             this.annotationClass = ClassportInfo.class;
         }
 
+        @Override
         public AnnotationVisitor visitAnnotation(String desc, boolean vis) {
             if (desc.equals(annotationClass.descriptorString())) {
                 return new AnnotationParser(annotationValues);
