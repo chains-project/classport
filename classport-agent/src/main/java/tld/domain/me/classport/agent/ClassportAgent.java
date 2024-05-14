@@ -35,11 +35,6 @@ public class ClassportAgent {
     }
 
     public static void premain(String argument, Instrumentation instrumentation) {
-        // Force classes to load early.
-        //
-        // If we try doing this after adding the transformer, it will try to transform
-        // PrintStream, which doesn't contain an annotation, so we print the class,
-        // which requires PrintStream [...]
         System.out.println("[Agent] Adding shutdown hook...");
         Thread printingHook = new Thread(() -> {
             printSBOM(sbom);
@@ -54,11 +49,19 @@ public class ClassportAgent {
                     Class<?> typeIfLoaded,
                     ProtectionDomain domain,
                     byte[] buffer) {
-                ClassportInfo ann = AnnotationReader.getAnnotationValues(buffer);
-                if (ann != null)
-                    sbom.put(name, ann);
-                else
-                    noAnnotations.add(name);
+                try {
+                    ClassportInfo ann = AnnotationReader.getAnnotationValues(buffer);
+                    if (ann != null)
+                        sbom.put(name, ann);
+                    else
+                        noAnnotations.add(name);
+                } catch (Throwable e) {
+                    /*
+                     * Catching Throwable is actually encouraged here.
+                     * See https://docs.oracle.com/en/java/javase/21/docs/api/java.instrument/java/lang/instrument/ClassFileTransformer.html
+                     */
+                    System.err.println("[Classport] Unable to process annotation for class " + name + ": " + e);
+                }
 
                 // We never transform the class, so just return null unconditionally
                 return null;
