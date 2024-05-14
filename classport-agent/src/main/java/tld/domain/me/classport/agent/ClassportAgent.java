@@ -2,6 +2,7 @@ package tld.domain.me.classport.agent;
 
 import java.lang.instrument.*;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -13,6 +14,7 @@ import tld.domain.me.classport.commons.ClassportInfo;
  */
 public class ClassportAgent {
     private static final HashMap<String, ClassportInfo> sbom = new HashMap<>();
+    private static final ArrayList<String> noAnnotations = new ArrayList<>();
 
     private static void printSBOM(Map<String, ClassportInfo> sbom) {
         for (Map.Entry<String, ClassportInfo> e : sbom.entrySet()) {
@@ -52,18 +54,11 @@ public class ClassportAgent {
                     Class<?> typeIfLoaded,
                     ProtectionDomain domain,
                     byte[] buffer) {
-                if (typeIfLoaded == null) {
-                    ClassportInfo ann = AnnotationReader.getAnnotationValues(buffer);
-                    if (ann != null) {
-                        sbom.put(name, ann);
-                        System.out.println("Loading class " + name + " (from " + ann.group() + ":" + ann.artefact()
-                                + ", version " + ann.version() + ")");
-                    } else
-                        System.out.println("Loaded class without annotation: " + name);
-                } else {
-                    System.out.println("[Agent] Re(loaded|defined) class '" +
-                            typeIfLoaded.getName() + "'");
-                }
+                ClassportInfo ann = AnnotationReader.getAnnotationValues(buffer);
+                if (ann != null)
+                    sbom.put(name, ann);
+                else
+                    noAnnotations.add(name);
 
                 // We never transform the class, so just return null unconditionally
                 return null;
