@@ -1,5 +1,9 @@
 package tld.domain.me.classport.agent;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.lang.instrument.*;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
@@ -16,32 +20,39 @@ public class ClassportAgent {
     private static final HashMap<String, ClassportInfo> sbom = new HashMap<>();
     private static final ArrayList<String> noAnnotations = new ArrayList<>();
 
-    private static void printSBOM(Map<String, ClassportInfo> sbom) {
-        for (Map.Entry<String, ClassportInfo> e : sbom.entrySet()) {
-            ClassportInfo meta = e.getValue();
-            System.out.println(e.getKey().replace('/', '.'));
-            System.out.println("\tid: " + meta.id());
-            System.out.println("\tartefact: " + meta.artefact());
-            System.out.println("\tgroup: " + meta.group());
-            System.out.println("\tversion: " + meta.version());
-            String[] dependencies = meta.childIds();
-            if (dependencies != null && dependencies.length > 0) {
-                System.out.println("\tdependencies:");
+    private static void writeSBOM(Map<String, ClassportInfo> sbom, File outputFile) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
+            for (Map.Entry<String, ClassportInfo> e : sbom.entrySet()) {
+                ClassportInfo meta = e.getValue();
+                writer.write(e.getKey().replace('/', '.'));
+                writer.newLine();
+                writer.write("\tid: " + meta.id());
+                writer.newLine();
+                writer.write("\tartefact: " + meta.artefact());
+                writer.newLine();
+                writer.write("\tgroup: " + meta.group());
+                writer.newLine();
+                writer.write("\tversion: " + meta.version());
+                writer.newLine();
+                String[] dependencies = meta.childIds();
+                if (dependencies != null && dependencies.length > 0) {
+                    writer.write("\tdependencies:");
+                    writer.newLine();
 
-                for (String dep : meta.childIds())
-                    System.out.println("\t\t" + dep);
+                    for (String dep : meta.childIds()) {
+                        writer.write("\t\t" + dep);
+                        writer.newLine();
+                    }
+                }
             }
+        } catch (IOException e) {
+            System.err.println("Error writing to file: " + e.getMessage());
         }
+
     }
 
     public static void premain(String argument, Instrumentation instrumentation) {
-        System.out.println("[Agent] Adding shutdown hook...");
-        Thread printingHook = new Thread(() -> {
-            printSBOM(sbom);
-        });
-        Runtime.getRuntime().addShutdownHook(printingHook);
-
-        instrumentation.addTransformer(new ClassFileTransformer() {
+        ClassFileTransformer transformer = new ClassFileTransformer() {
             @Override
             public byte[] transform(Module module,
                     ClassLoader loader,
@@ -66,6 +77,19 @@ public class ClassportAgent {
                 // We never transform the class, so just return null unconditionally
                 return null;
             }
+        };
+
+        // Hook into the shutdown process and print the SBOM
+        Thread printingHook = new Thread(() -> {
+            // Unregister the transformer, as we can't add to the map while accessing it for
+            // printing anyway
+            instrumentation.removeTransformer(transformer);
+
+            writeSBOM(sbom, new File("classport-sbom"));
         });
+        Runtime.getRuntime().addShutdownHook(printingHook);
+
+        // Start instrumenting loaded classes
+        instrumentation.addTransformer(transformer);
     }
 }
