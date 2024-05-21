@@ -38,73 +38,98 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-// We don't mind too much about the default lifecycle, but the ResolutionScope has to be TEST
-// so that all dependencies are resolved
-@Mojo(name = "classport", defaultPhase = LifecyclePhase.COMPILE, requiresDependencyCollection = ResolutionScope.TEST, requiresDependencyResolution = ResolutionScope.TEST)
+@Mojo(name = "classport", defaultPhase = LifecyclePhase.GENERATE_RESOURCES, requiresDependencyResolution = ResolutionScope.TEST)
 public class EmbeddingMojo
         extends AbstractMojo {
     /**
-     * Gives access to the Maven project information.
+     * The Maven project to operate on
      */
     @Parameter(defaultValue = "${project}", required = true, readonly = true)
     MavenProject project;
 
+    /**
+     * The Maven session to operate on
+     */
     @Component
     private MavenSession session;
 
     @Component
     private ProjectBuilder projectBuilder;
 
+    /**
+     * Builds a {@link MavenProject} from an {@link Artifact}
+     */
     private MavenProject buildProjectForArtefact(Artifact artefact) throws MojoExecutionException {
         try {
             return projectBuilder
                     .build(artefact, session.getProjectBuildingRequest().setProcessPlugins(false))
                     .getProject();
         } catch (ProjectBuildingException e) {
-            throw new MojoExecutionException("Coud not build project for " + artefact.getId(), e);
+            throw new MojoExecutionException("Could not build project for " + artefact.getId(), e);
         }
     }
 
-    // TODO: Mirror Artifact.getId() properly
+    /*
+     * Used to identify a dependency.
+     *
+     * Mirrors the fullId used as the dependency's `ClassportInfo.id()`, since
+     * Dependency.getVersion() == Artifact.getBaseVersion()
+     */
     private String getDependencyId(Dependency dep) {
         return dep.getGroupId() + ":" + dep.getArtifactId() + ":" + dep.getVersion();
     }
 
     public void execute() throws MojoExecutionException, MojoFailureException {
-        Set<Artifact> completeArtifactSet = project.getArtifacts();
-        File localrepoRoot = new File("classport-files");
+        Set<Artifact> dependencyArtifacts = project.getArtifacts();
+
         // There's no way to differentiate between "the directory already exists"
         // and "failed to create the directory" without checking for existance too
         // so just allow overwriting as that's probably what we want anyway (?)
+        // TODO: Is there a "proper" way of producing this top-level only?
+        File localrepoRoot = new File("classport-files");
         localrepoRoot.mkdir();
-        for (Artifact a : completeArtifactSet) {
-            MavenProject p = buildProjectForArtefact(a);
-            String fullId = a.getId();
-            try {
-                ClassportInfo meta = new ClassportHelper().getInstance(
-                        fullId,
-                        a.getArtifactId(),
-                        a.getGroupId(),
-                        a.getVersion(),
-                        p.getModel().getDependencies()
-                                .stream()
-                                .map(dep -> getDependencyId(dep))
-                                .collect(Collectors.toList()).toArray(String[]::new));
 
-                String artefactPath = getArtefactPath(a);
-                JarHelper pkgr = new JarHelper(a.getFile(),
+        for (Artifact artifact : dependencyArtifacts) {
+            try {
+                ClassportInfo meta = getMetadata(artifact);
+                String artefactPath = getArtefactPath(artifact);
+                JarHelper pkgr = new JarHelper(artifact.getFile(),
                         new File(localrepoRoot + "/" + artefactPath),
                         /* overwrite target if exists? */ true);
-                getLog().info("Embedding metadata for " + fullId);
+                getLog().info("Embedding metadata for " + artifact);
                 pkgr.embed(meta);
             } catch (IOException e) {
-                getLog().error(e);
+                getLog().error("Failed to embed metadata for " + artifact + ": " + e);
             }
+
         }
     }
 
+    /*
+     * Get the Maven metadata of an artefact
+     */
+    private ClassportInfo getMetadata(Artifact artifact) throws IOException, MojoExecutionException {
+        MavenProject dependencyProject = buildProjectForArtefact(artifact);
+        String groupId = artifact.getGroupId();
+        String artefactId = artifact.getArtifactId();
+        String version = artifact.getBaseVersion();
+        String artefactCoordinates = groupId + ":" + artefactId + ":" + version;
+        return new ClassportHelper().getInstance(
+                artefactCoordinates,
+                artefactId,
+                groupId,
+                version,
+                dependencyProject.getModel().getDependencies()
+                        .stream()
+                        .map(transitiveDep -> getDependencyId(transitiveDep))
+                        .collect(Collectors.toList()).toArray(String[]::new));
+    }
+
     /**
-     * Get an artefact's path based on its properties.
+     * Get an artefact's path relative to the repository root.
+     *
+     * TODO: Get the regular path (~/.m2/repository/...) and remove the
+     * m2/repo-part instead?
      *
      * @see <a href="https://maven.apache.org/repositories/layout.html">Maven
      *      docs on repository structure</a>
@@ -120,7 +145,7 @@ public class EmbeddingMojo
                 a.getGroupId().replace('.', '/'),
                 a.getArtifactId(),
                 a.getBaseVersion(),
-                a.getArtifactId(), a.getVersion(), classifier,
+                a.getArtifactId(), a.getBaseVersion(), classifier,
                 "jar" /* TODO support more extensions */);
     }
 }

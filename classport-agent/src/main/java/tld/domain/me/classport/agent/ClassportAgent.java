@@ -20,6 +20,7 @@ public class ClassportAgent {
     private static final HashMap<String, ClassportInfo> sbom = new HashMap<>();
     private static final ArrayList<String> noAnnotations = new ArrayList<>();
 
+    // TODO: Output in a useful format (JSON?)
     private static void writeSBOM(Map<String, ClassportInfo> sbom, File outputFile) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
             for (Map.Entry<String, ClassportInfo> e : sbom.entrySet()) {
