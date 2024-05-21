@@ -1,10 +1,10 @@
-package tld.domain.me.classport.plugin;
+package io.github.chains_project.classport.plugin;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import tld.domain.me.classport.commons.ClassportInfo;
+import io.github.chains_project.classport.commons.ClassportInfo;
 
 import org.objectweb.asm.*;
 

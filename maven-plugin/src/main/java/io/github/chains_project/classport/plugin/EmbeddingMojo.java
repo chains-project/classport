@@ -1,6 +1,6 @@
-package tld.domain.me.classport.plugin;
+package io.github.chains_project.classport.plugin;
 
-import tld.domain.me.classport.commons.*;
+import io.github.chains_project.classport.commons.*;
 
 /*
  * Copyright 2001-2005 The Apache Software Foundation.

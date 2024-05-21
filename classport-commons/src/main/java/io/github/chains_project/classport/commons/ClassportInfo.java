@@ -1,4 +1,4 @@
-package tld.domain.me.classport.commons;
+package io.github.chains_project.classport.commons;
 
 import java.lang.annotation.*;
 

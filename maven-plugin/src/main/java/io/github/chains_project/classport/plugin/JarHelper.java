@@ -1,4 +1,4 @@
-package tld.domain.me.classport.plugin;
+package io.github.chains_project.classport.plugin;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -22,7 +22,7 @@ import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
-import tld.domain.me.classport.commons.ClassportInfo;
+import io.github.chains_project.classport.commons.ClassportInfo;
 
 class JarHelper {
     private final File source;

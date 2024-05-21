@@ -1,8 +1,8 @@
-package tld.domain.me.classport.agent;
+package io.github.chains_project.classport.agent;
 
 import org.objectweb.asm.*;
 
-import tld.domain.me.classport.commons.ClassportInfo;
+import io.github.chains_project.classport.commons.ClassportInfo;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -1,4 +1,4 @@
-package tld.domain.me.classport.agent;
+package io.github.chains_project.classport.agent;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import tld.domain.me.classport.commons.ClassportInfo;
+import io.github.chains_project.classport.commons.ClassportInfo;
 
 /**
  * A classport agent, ready to check the classports of any and all incoming

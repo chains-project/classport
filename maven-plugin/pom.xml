@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>tld.domain.me</groupId>
+        <groupId>io.github.chains-project</groupId>
         <artifactId>classport</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
@@ -23,7 +23,7 @@
     <dependencies>
         <!-- The annotation to embed -->
         <dependency>
-            <groupId>tld.domain.me</groupId>
+            <groupId>io.github.chains-project</groupId>
             <artifactId>classport-commons</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
