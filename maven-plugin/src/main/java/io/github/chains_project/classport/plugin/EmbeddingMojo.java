@@ -72,7 +72,7 @@ public class EmbeddingMojo
     /*
      * Used to identify a dependency.
      *
-     * Mirrors the fullId used as the dependency's `ClassportInfo.id()`, since
+     * Mirrors an artefact's coordinates, since
      * Dependency.getVersion() == Artifact.getBaseVersion()
      */
     private String getDependencyId(Dependency dep) {

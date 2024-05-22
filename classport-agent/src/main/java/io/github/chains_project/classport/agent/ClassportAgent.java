@@ -4,6 +4,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.lang.instrument.*;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
@@ -21,33 +23,16 @@ public class ClassportAgent {
     private static final ArrayList<String> noAnnotations = new ArrayList<>();
 
     // TODO: Output in a useful format (JSON?)
-    private static void writeSBOM(Map<String, ClassportInfo> sbom, File outputFile) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
-            for (Map.Entry<String, ClassportInfo> e : sbom.entrySet()) {
-                ClassportInfo meta = e.getValue();
-                writer.write(e.getKey().replace('/', '.'));
-                writer.newLine();
-                writer.write("\tid: " + meta.id());
-                writer.newLine();
-                writer.write("\tartefact: " + meta.artefact());
-                writer.newLine();
-                writer.write("\tgroup: " + meta.group());
-                writer.newLine();
-                writer.write("\tversion: " + meta.version());
-                writer.newLine();
-                String[] dependencies = meta.childIds();
-                if (dependencies != null && dependencies.length > 0) {
-                    writer.write("\tdependencies:");
-                    writer.newLine();
+    private static void writeSBOM(Map<String, ClassportInfo> sbom, File outputFile) throws IOException {
+        Writer writer = outputFile == null ? new OutputStreamWriter(System.out) : new FileWriter(outputFile);
 
-                    for (String dep : meta.childIds()) {
-                        writer.write("\t\t" + dep);
-                        writer.newLine();
-                    }
-                }
-            }
+        // Model the SBOM as a hierarchical project
+        ClassportProject proj = new ClassportProject(sbom);
+
+        try (BufferedWriter bufWriter = new BufferedWriter(writer)) {
+            proj.writeTree(bufWriter);
         } catch (IOException e) {
-            System.err.println("Error writing to file: " + e.getMessage());
+            System.err.println("Error writing SBOM: " + e.getMessage());
         }
 
     }
@@ -64,7 +49,7 @@ public class ClassportAgent {
                 try {
                     ClassportInfo ann = AnnotationReader.getAnnotationValues(buffer);
                     if (ann != null)
-                        sbom.put(name, ann);
+                        sbom.put(ann.id(), ann);
                     else
                         noAnnotations.add(name);
                 } catch (Throwable e) {
@@ -86,7 +71,11 @@ public class ClassportAgent {
             // printing anyway
             instrumentation.removeTransformer(transformer);
 
-            writeSBOM(sbom, new File("classport-sbom"));
+            try {
+                writeSBOM(sbom, new File("classport-sbom"));
+            } catch (IOException e) {
+                System.err.println("Unable to print SBOM: " + e.getMessage());
+            }
         });
         Runtime.getRuntime().addShutdownHook(printingHook);
 
