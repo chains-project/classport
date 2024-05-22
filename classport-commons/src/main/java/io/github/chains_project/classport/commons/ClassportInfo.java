@@ -4,6 +4,8 @@ import java.lang.annotation.*;
 
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ClassportInfo {
+    boolean isDirectDependency();
+
     String id();
 
     String artefact();

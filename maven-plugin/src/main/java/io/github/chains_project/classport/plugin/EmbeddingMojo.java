@@ -114,7 +114,10 @@ public class EmbeddingMojo
         String artefactId = artifact.getArtifactId();
         String version = artifact.getBaseVersion();
         String artefactCoordinates = groupId + ":" + artefactId + ":" + version;
+        boolean isDirectDependency = this.project.getDependencies().stream().map(dep -> getDependencyId(dep))
+                .collect(Collectors.toList()).contains(artefactCoordinates);
         return new ClassportHelper().getInstance(
+                isDirectDependency,
                 artefactCoordinates,
                 artefactId,
                 groupId,

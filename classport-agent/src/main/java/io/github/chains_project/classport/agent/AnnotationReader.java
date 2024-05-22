@@ -24,6 +24,12 @@ public class AnnotationReader {
             }
 
             @Override
+            public boolean isDirectDependency() {
+                // TODO Auto-generated method stub
+                return (boolean) classportValues.get("isDirectDependency");
+            }
+
+            @Override
             public String id() {
                 return classportValues.get("id").toString();
             }
