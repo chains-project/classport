@@ -92,7 +92,7 @@ public class EmbeddingMojo
         for (Artifact artifact : dependencyArtifacts) {
             try {
                 ClassportInfo meta = getMetadata(artifact);
-                String artefactPath = getArtefactPath(artifact);
+                String artefactPath = getArtefactPath(artifact, true);
                 JarHelper pkgr = new JarHelper(artifact.getFile(),
                         new File(localrepoRoot + "/" + artefactPath),
                         /* overwrite target if exists? */ true);
@@ -130,6 +130,9 @@ public class EmbeddingMojo
 
     /**
      * Get an artefact's path relative to the repository root.
+     * If resolveSnapshotVersion is true, we get the specific snapshot
+     * version instead of just "-SNAPSHOT". This may default to true
+     * in the future, as this seems to be Maven's default behaviour.
      *
      * TODO: Get the regular path (~/.m2/repository/...) and remove the
      * m2/repo-part instead?
@@ -137,7 +140,7 @@ public class EmbeddingMojo
      * @see <a href="https://maven.apache.org/repositories/layout.html">Maven
      *      docs on repository structure</a>
      */
-    private String getArtefactPath(Artifact a) {
+    private String getArtefactPath(Artifact a, boolean resolveSnapshotVersion) {
         String classifier = a.getClassifier();
         if (classifier == null)
             classifier = "";
@@ -147,8 +150,8 @@ public class EmbeddingMojo
         return String.format("%s/%s/%s/%s-%s%s.%s",
                 a.getGroupId().replace('.', '/'),
                 a.getArtifactId(),
-                a.getBaseVersion(),
-                a.getArtifactId(), a.getBaseVersion(), classifier,
+                a.getBaseVersion(), // This seems to always be the base version
+                a.getArtifactId(), (resolveSnapshotVersion ? a.getVersion() : a.getBaseVersion()), classifier,
                 "jar" /* TODO support more extensions */);
     }
 }
