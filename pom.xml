@@ -32,6 +32,7 @@
     <module>classport-commons</module>
     <module>maven-plugin</module>
     <module>classport-agent</module>
+    <module>classport-verifier</module>
   </modules>
 
   <scm>
