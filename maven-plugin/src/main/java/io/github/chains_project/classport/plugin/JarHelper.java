@@ -30,6 +30,8 @@ class JarHelper {
     private final boolean overwrite;
 
     // All class files begin with the magic bytes 0xCAFEBABE
+    // TODO: Refactor this class and put it in classport-commons
+    // TODO: Expose this constant
     private static final byte[] magicBytes = new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE };
 
     public JarHelper(File source, File target) {

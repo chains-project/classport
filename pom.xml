@@ -12,6 +12,8 @@
   <url>https://github.com/chains-project/classport</url>
   <inceptionYear>2024</inceptionYear>
 
+  <!-- TODO: Set variables for url, version etc. that are inherited in child POMs -->
+
   <licenses>
     <license>
       <name>MIT License</name>
