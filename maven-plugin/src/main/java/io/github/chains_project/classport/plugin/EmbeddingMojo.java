@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Mojo(name = "classport", defaultPhase = LifecyclePhase.GENERATE_RESOURCES, requiresDependencyResolution = ResolutionScope.TEST)
+@Mojo(name = "embed", defaultPhase = LifecyclePhase.GENERATE_RESOURCES, requiresDependencyResolution = ResolutionScope.TEST)
 public class EmbeddingMojo
         extends AbstractMojo {
     /**
