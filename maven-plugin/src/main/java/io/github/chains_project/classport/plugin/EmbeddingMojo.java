@@ -86,7 +86,7 @@ public class EmbeddingMojo
         // and "failed to create the directory" without checking for existance too
         // so just allow overwriting as that's probably what we want anyway (?)
         // TODO: Is there a "proper" way of producing this top-level only?
-        File localrepoRoot = new File("classport-files");
+        File localrepoRoot = new File(project.getBasedir() + "/classport-files");
         localrepoRoot.mkdir();
 
         for (Artifact artifact : dependencyArtifacts) {
