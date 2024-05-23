@@ -1,8 +1,6 @@
-package io.github.chains_project.classport.agent;
+package io.github.chains_project.classport.commons;
 
 import org.objectweb.asm.*;
-
-import io.github.chains_project.classport.commons.ClassportInfo;
 
 import java.util.ArrayList;
 import java.util.HashMap;

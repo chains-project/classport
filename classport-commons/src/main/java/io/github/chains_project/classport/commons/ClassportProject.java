@@ -1,4 +1,4 @@
-package io.github.chains_project.classport.agent;
+package io.github.chains_project.classport.commons;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
-
-import io.github.chains_project.classport.commons.ClassportInfo;
 
 public class ClassportProject {
     // TODO: Rework this pretty-printing stuff into something nicer

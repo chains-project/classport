@@ -13,6 +13,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.github.chains_project.classport.commons.ClassportInfo;
+import io.github.chains_project.classport.commons.ClassportProject;
+import io.github.chains_project.classport.commons.AnnotationReader;
 
 /**
  * A classport agent, ready to check the classports of any and all incoming
