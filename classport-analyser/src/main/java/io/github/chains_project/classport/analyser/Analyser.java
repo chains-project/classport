@@ -1,4 +1,4 @@
-package io.github.chains_project.classport.verifier;
+package io.github.chains_project.classport.analyser;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -16,7 +16,7 @@ import io.github.chains_project.classport.commons.ClassportProject;
 /**
  *
  */
-public class Verifier {
+public class Analyser {
     // All class files begin with the magic bytes 0xCAFEBABE
     // TODO: Refactor the Maven plugin's JarHelper, put in into classport-commons,
     // and use this from there.
