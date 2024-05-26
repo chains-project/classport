@@ -8,50 +8,67 @@ import java.lang.annotation.Annotation;
 
 public class AnnotationReader {
     public static ClassportInfo getAnnotationValues(byte[] bytes) {
-        ClassReader r = new ClassReader(bytes);
+        ClassReader r;
+        try {
+            r = new ClassReader(bytes);
+        } catch (IllegalArgumentException e) {
+            System.err.println("Unable to parse Class file");
+            return null;
+        }
+
         AnnotationChecker an = new AnnotationChecker();
         r.accept(an, 0);
         HashMap<String, Object> classportValues = an.getAnnotationValues();
+
+        // Does not contain an annotation
         if (classportValues.isEmpty())
             return null;
 
-        return new ClassportInfo() {
-            @Override
-            public Class<? extends Annotation> annotationType() {
-                return ClassportInfo.class;
-            }
+        try {
+            return new ClassportInfo() {
+                @Override
+                public Class<? extends Annotation> annotationType() {
+                    return ClassportInfo.class;
+                }
 
-            @Override
-            public boolean isDirectDependency() {
-                // TODO Auto-generated method stub
-                return (boolean) classportValues.get("isDirectDependency");
-            }
+                @Override
+                public boolean isDirectDependency() {
+                    // TODO Auto-generated method stub
+                    return (boolean) classportValues.get("isDirectDependency");
+                }
 
-            @Override
-            public String id() {
-                return classportValues.get("id").toString();
-            }
+                @Override
+                public String id() {
+                    return classportValues.get("id").toString();
+                }
 
-            @Override
-            public String artefact() {
-                return classportValues.get("artefact").toString();
-            }
+                @Override
+                public String artefact() {
+                    return classportValues.get("artefact").toString();
+                }
 
-            @Override
-            public String group() {
-                return classportValues.get("group").toString();
-            }
+                @Override
+                public String group() {
+                    return classportValues.get("group").toString();
+                }
 
-            @Override
-            public String version() {
-                return classportValues.get("version").toString();
-            }
+                @Override
+                public String version() {
+                    return classportValues.get("version").toString();
+                }
 
-            @Override
-            public String[] childIds() {
-                return (String[]) classportValues.get("childIds");
-            }
-        };
+                @Override
+                public String[] childIds() {
+                    return (String[]) classportValues.get("childIds");
+                }
+            };
+        } catch (NullPointerException e) {
+            System.err.println(
+                    "Missing annotation value. "
+                            + "If Classport has been updated since this class was modified, "
+                            + "you may need to run the embedding phase again.\n" + e.getMessage());
+            return null;
+        }
     }
 
     // The following classes are static as they don't require any field info from
