@@ -63,7 +63,13 @@ public class Analyser {
         proj.writeTree(new PrintWriter(System.out));
     }
 
-    private static final void generateTestJar(JarFile jar) {
+    /*
+     * Generates a JAR file where the main class has been modified to force-load
+     * classes from all dependencies
+     *
+     * @return true if successful, false if not
+     */
+    private static final boolean generateTestJar(JarFile jar, String outFileName) {
         // Check the manifest, find the main class
         String className, mainClass;
         HashMap<String, String> classesToLoad = new HashMap<>();
@@ -72,7 +78,7 @@ public class Analyser {
             if (mainClass == null) {
                 System.err.println("JAR file manifest does not contain a 'Main-Class' attribute.");
                 System.err.println("Such a JAR is not executable, so the generation will be skipped.");
-                return;
+                return false;
             }
             mainClass = mainClass.replace('.', '/'); // Make it compatible with internal names
             // Intercept classes and log them as <artefact name>: <class name>
@@ -99,13 +105,12 @@ public class Analyser {
             }
         } catch (IOException e) {
             System.err.println("Unable to process JAR file");
-            return;
+            return false;
         }
-
 
         // Go through the JAR again, stream it to the new location
         try (JarOutputStream out = new JarOutputStream(
-                new BufferedOutputStream(new FileOutputStream("regenerated-program.jar")))) {
+                new BufferedOutputStream(new FileOutputStream(outFileName)))) {
             Enumeration<JarEntry> entries = jar.entries();
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
@@ -137,6 +142,8 @@ public class Analyser {
         } catch (IOException e) {
             System.err.println("Unable to generate modified JAR file");
         }
+
+        return true;
     }
 
     public static void main(String[] args) {
@@ -157,7 +164,11 @@ public class Analyser {
         if (args[0].equals("-printTree")) {
             printDepTree(jar);
         } else if (args[0].equals("-generateTestJar")) {
-            generateTestJar(jar);
+            System.out.println("Generating test jar...");
+            String regenJarName = "regenerated-program.jar";
+            if (generateTestJar(jar, regenJarName))
+                System.out.println("Generation complete. " +
+                        "Regenerated JAR created at '" + regenJarName + "'");
         }
     }
 }
