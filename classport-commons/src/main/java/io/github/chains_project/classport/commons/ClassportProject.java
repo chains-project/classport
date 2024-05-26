@@ -10,9 +10,9 @@ import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 public class ClassportProject {
-    // TODO: Rework this pretty-printing stuff into something nicer
-    private static final String SBOM_INDENTING_INDICATOR = "----";
-    private static final String SBOM_INDENTED_INDICATOR = ">   ";
+    private static final String SBOM_NESTING_DELIM = "|  ";
+    private static final String SBOM_ITEM_SPECIFIER = "+-";
+    private static final String SBOM_LAST_ITEM_SPECIFIER = "\\-";
 
     private ArrayList<SBOMNode> directDependencies;
 
@@ -29,14 +29,20 @@ public class ClassportProject {
     }
 
     public void writeTree(Writer out) {
-        for (SBOMNode dep : directDependencies) {
-            dep._writeTree(out, 0);
+        for (int i = 0; i < directDependencies.size(); ++i) {
+            SBOMNode dep = directDependencies.get(i);
+            // We're at nest level one for each direct dependency
+            dep._writeTree(out, 1, i == (directDependencies.size() - 1));
         }
 
         // Make sure everything's written properly
-        try {
+        try
+
+        {
             out.flush();
-        } catch (IOException e) {
+        } catch (
+
+        IOException e) {
             System.err.println("Unable to flush output stream");
         }
     }
@@ -75,20 +81,24 @@ public class ClassportProject {
             return dependencyId;
         }
 
-        public void _writeTree(Writer out, int nestLevel) {
+        public void _writeTree(Writer out, int nestLevel, boolean isLast) {
             try {
                 // Do some pretty-printing
                 if (nestLevel > 0) {
                     for (int i = 0; i < nestLevel - 1; ++i)
-                        out.write(SBOM_INDENTING_INDICATOR);
+                        out.write(SBOM_NESTING_DELIM);
 
-                    out.write(SBOM_INDENTED_INDICATOR);
+                    if (isLast)
+                        out.write(SBOM_LAST_ITEM_SPECIFIER + " ");
+                    else
+                        out.write(SBOM_ITEM_SPECIFIER + " ");
                 }
 
                 out.write(dependencyId);
                 out.write('\n');
-                for (SBOMNode dep : childNodes) {
-                    dep._writeTree(out, nestLevel + 1);
+                for (int i = 0; i < childNodes.size(); ++i) {
+                    SBOMNode dep = childNodes.get(i);
+                    dep._writeTree(out, nestLevel + 1, (i == childNodes.size() - 1));
                 }
             } catch (Throwable e) {
                 System.err.println("Unable to write SBOM for node " + this.dependencyId + ": " + e.getMessage());
