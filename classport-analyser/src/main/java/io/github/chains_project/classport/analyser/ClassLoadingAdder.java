@@ -29,9 +29,42 @@ public class ClassLoadingAdder {
         ClassReader cr = new ClassReader(originalMainClass);
         ClassWriter cw = new ClassWriter(cr, 0);
         ClassVisitor addMethodVisitor = new ClassVisitor(Opcodes.ASM9, cw) {
+            private String ownerClass;
+
+            @Override
+            public void visit(int version, int access, String name, String signature, String superName,
+                    String[] interfaces) {
+                ownerClass = name;
+                super.visit(version, access, name, signature, superName, interfaces);
+            }
+
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature,
+                    String[] exceptions) {
+                MethodVisitor mv = cv.visitMethod(access, name, descriptor, signature, exceptions);
+                if (name.equals("main") && descriptor.equals("([Ljava/lang/String;)V")) {
+                    mv = new AddMethodCallAdapter(mv);
+                }
+                return mv;
+            }
+
+            class AddMethodCallAdapter extends MethodVisitor {
+                public AddMethodCallAdapter(MethodVisitor mv) {
+                    super(Opcodes.ASM9, mv);
+                }
+
+                @Override
+                public void visitCode() {
+                    // Call the new function first in the main method
+                    mv.visitMethodInsn(Opcodes.INVOKESTATIC, ownerClass, METHODNAME, METHODDESCRIPTOR, false);
+                    mv.visitCode();
+                };
+            }
+
             @Override
             public void visitEnd() {
-                MethodVisitor mv = cv.visitMethod(Opcodes.ACC_PRIVATE, METHODNAME, METHODDESCRIPTOR, null, null);
+                MethodVisitor mv = cv.visitMethod(Opcodes.ACC_PRIVATE + Opcodes.ACC_STATIC, METHODNAME,
+                        METHODDESCRIPTOR, null, null);
                 if (mv != null) {
                     // Start of function
                     mv.visitCode();

@@ -12,6 +12,8 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 
+import org.objectweb.asm.Opcodes;
+
 import io.github.chains_project.classport.commons.AnnotationReader;
 import io.github.chains_project.classport.commons.ClassportInfo;
 import io.github.chains_project.classport.commons.ClassportProject;
@@ -95,11 +97,14 @@ public class Analyser {
                 if (Arrays.equals(firstBytes, magicBytes)) {
                     byte[] classFileBytes = in.readAllBytes();
                     ClassportInfo ann = AnnotationReader.getAnnotationValues(classFileBytes);
-                    className = ClassNameExtractor.getName(classFileBytes);
-                    // TODO: Also read the actual class name so that we can inject it properly?
+                    // If a class is not public, we won't be able to call it.
+                    ClassInfo info = ClassNameExtractor.getInfo(classFileBytes);
+                    className = info.name;
+                    boolean isPublic = (info.access & Opcodes.ACC_PUBLIC) != 0;
+
                     if (ann == null)
                         System.err.println("[Warning] Class file detected without annotation: " + entry.getName());
-                    else if (!className.contains("package-info")) // Not a valid class due to "-"
+                    else if (isPublic && !className.contains("package-info")) // Not a valid class due to "-"
                         classesToLoad.put(ann.id(), className);
                 }
             }
@@ -123,7 +128,7 @@ public class Analyser {
 
                 if (Arrays.equals(firstBytes, magicBytes)) {
                     byte[] classFileBytes = in.readAllBytes();
-                    className = ClassNameExtractor.getName(classFileBytes);
+                    className = ClassNameExtractor.getInfo(classFileBytes).name;
                     // If this is the entry point class file, modify it
                     if (className.equals(mainClass)) {
                         out.write(ClassLoadingAdder.forceClassLoading(classFileBytes,
