@@ -75,8 +75,20 @@ public class EmbeddingMojo
      * Mirrors an artefact's coordinates, since
      * Dependency.getVersion() == Artifact.getBaseVersion()
      */
-    private String getDependencyId(Dependency dep) {
-        return dep.getGroupId() + ":" + dep.getArtifactId() + ":" + dep.getVersion();
+    private String getDependencyLongId(Dependency dep) {
+        return dep.getGroupId()
+                + ":" + dep.getArtifactId()
+                + ":" + dep.getType()
+                + (dep.getClassifier() != null ? ":" + dep.getClassifier() : "")
+                + ":" + dep.getVersion();
+    }
+
+    private String getArtifactLongId(Artifact a) {
+        return a.getGroupId()
+                + ":" + a.getArtifactId()
+                + ":" + a.getType()
+                + (a.getClassifier() != null ? ":" + a.getClassifier() : "")
+                + ":" + a.getVersion();
     }
 
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -85,7 +97,6 @@ public class EmbeddingMojo
         // There's no way to differentiate between "the directory already exists"
         // and "failed to create the directory" without checking for existance too
         // so just allow overwriting as that's probably what we want anyway (?)
-        // TODO: Is there a "proper" way of producing this top-level only?
         File localrepoRoot = new File(project.getBasedir() + "/classport-files");
         localrepoRoot.mkdir();
 
@@ -110,21 +121,18 @@ public class EmbeddingMojo
      */
     private ClassportInfo getMetadata(Artifact artifact) throws IOException, MojoExecutionException {
         MavenProject dependencyProject = buildProjectForArtefact(artifact);
-        String groupId = artifact.getGroupId();
-        String artefactId = artifact.getArtifactId();
-        String version = artifact.getBaseVersion();
-        String artefactCoordinates = groupId + ":" + artefactId + ":" + version;
-        boolean isDirectDependency = this.project.getDependencies().stream().map(dep -> getDependencyId(dep))
-                .collect(Collectors.toList()).contains(artefactCoordinates);
+        String aId = getArtifactLongId(artifact);
+        boolean isDirectDependency = this.project.getDependencies().stream().map(dep -> getDependencyLongId(dep))
+                .collect(Collectors.toList()).contains(aId);
         return new ClassportHelper().getInstance(
                 isDirectDependency,
-                artefactCoordinates,
-                artefactId,
-                groupId,
-                version,
+                aId,
+                artifact.getArtifactId(),
+                artifact.getGroupId(),
+                artifact.getVersion(),
                 dependencyProject.getModel().getDependencies()
                         .stream()
-                        .map(transitiveDep -> getDependencyId(transitiveDep))
+                        .map(transitiveDep -> getDependencyLongId(transitiveDep))
                         .collect(Collectors.toList()).toArray(String[]::new));
     }
 

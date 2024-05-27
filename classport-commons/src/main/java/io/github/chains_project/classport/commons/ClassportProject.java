@@ -36,9 +36,7 @@ public class ClassportProject {
         }
 
         // Make sure everything's written properly
-        try
-
-        {
+        try {
             out.flush();
         } catch (
 
