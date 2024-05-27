@@ -8,6 +8,7 @@ import java.io.PushbackInputStream;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Map.Entry;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
@@ -29,6 +30,7 @@ public class Analyser {
 
     private static HashMap<String, ClassportInfo> getSBOM(JarFile jar) {
         HashMap<String, ClassportInfo> sbom = new HashMap<>();
+        HashMap<String, Integer> noAnnotations = new HashMap<>();
         try {
             // TODO: There is some code duplication here. This same thing is used in the
             // io.github.chains_project.classport.maven_plugin.JarHelper class.
@@ -44,16 +46,26 @@ public class Analyser {
 
                 // We only care about class files
                 if (Arrays.equals(firstBytes, magicBytes)) {
-                    ClassportInfo ann = AnnotationReader.getAnnotationValues(in.readAllBytes());
-                    if (ann == null)
-                        System.err.println("[Warning] Class file detected without annotation: " + entry.getName());
-                    else
+                    byte[] classFileBytes = in.readAllBytes();
+                    ClassportInfo ann = AnnotationReader.getAnnotationValues(classFileBytes);
+                    ClassInfo info = ClassNameExtractor.getInfo(classFileBytes);
+                    if (ann == null) {
+                        // Increment no. of classes from this package
+                        String packageName = info.name.substring(0, info.name.lastIndexOf("/")).replace('/', '.');
+                        noAnnotations.put(packageName, noAnnotations.getOrDefault(packageName, 0) + 1);
+                    } else {
                         sbom.put(ann.id(), ann);
+                    }
                 }
             }
         } catch (IOException e) {
             System.err.println("Error while printing tree: " + e.getMessage());
         }
+
+        for (Entry<String, Integer> e : noAnnotations.entrySet())
+            System.err.println("[Warning] " + e.getValue()
+                    + " class file(s) detected without annotation for package "
+                    + e.getKey());
 
         return sbom;
     }
@@ -75,6 +87,7 @@ public class Analyser {
         // Check the manifest, find the main class
         String className, mainClass;
         HashMap<String, String> classesToLoad = new HashMap<>();
+        HashMap<String, Integer> noAnnotations = new HashMap<>();
         try {
             mainClass = jar.getManifest().getMainAttributes().getValue("Main-Class");
             if (mainClass == null) {
@@ -102,16 +115,25 @@ public class Analyser {
                     className = info.name;
                     boolean isPublic = (info.access & Opcodes.ACC_PUBLIC) != 0;
 
-                    if (ann == null)
-                        System.err.println("[Warning] Class file detected without annotation: " + entry.getName());
-                    else if (isPublic && !className.contains("package-info")) // Not a valid class due to "-"
+                    if (ann == null) {
+                        // Increment no. of classes from this package
+                        String packageName = className.substring(0, className.lastIndexOf("/")).replace('/', '.');
+                        noAnnotations.put(packageName, noAnnotations.getOrDefault(packageName, 0) + 1);
+                    } else if (isPublic && !className.contains("package-info")) {
+                        // Not a valid class due to "-"
                         classesToLoad.put(ann.id(), className);
+                    }
                 }
             }
         } catch (IOException e) {
             System.err.println("Unable to process JAR file");
             return false;
         }
+
+        for (Entry<String, Integer> e : noAnnotations.entrySet())
+            System.err.println("[Warning] " + e.getValue()
+                    + " class file(s) detected without annotation for package "
+                    + e.getKey());
 
         // Go through the JAR again, stream it to the new location
         try (JarOutputStream out = new JarOutputStream(
