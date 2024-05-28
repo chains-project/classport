@@ -32,8 +32,12 @@ public class AnnotationReader {
                 }
 
                 @Override
+                public String sourceProjectId() {
+                    return classportValues.get("sourceProjectId").toString();
+                }
+
+                @Override
                 public boolean isDirectDependency() {
-                    // TODO Auto-generated method stub
                     return (boolean) classportValues.get("isDirectDependency");
                 }
 

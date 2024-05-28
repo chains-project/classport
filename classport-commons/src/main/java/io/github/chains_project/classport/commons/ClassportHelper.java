@@ -3,11 +3,21 @@ package io.github.chains_project.classport.commons;
 import java.lang.annotation.*;
 
 public class ClassportHelper {
-    public ClassportInfo getInstance(boolean isDirectDependency, String id, String artefact, String group, String version, String[] childIds) {
+    public ClassportInfo getInstance(String sourceProjectId,
+            boolean isDirectDependency,
+            String id,
+            String artefact,
+            String group,
+            String version, String[] childIds) {
         return new ClassportInfo() {
             @Override
             public Class<? extends Annotation> annotationType() {
                 return ClassportInfo.class;
+            }
+
+            @Override
+            public String sourceProjectId() {
+                return sourceProjectId;
             }
 
             @Override

@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class ClassportProject {
@@ -14,33 +15,54 @@ public class ClassportProject {
     private static final String SBOM_ITEM_SPECIFIER = "+-";
     private static final String SBOM_LAST_ITEM_SPECIFIER = "\\-";
 
+    private String projectRootId;
     private ArrayList<SBOMNode> directDependencies;
+    private Optional<SBOMNode> projectRoot;
 
     public ClassportProject(Map<String, ClassportInfo> sbom) {
-        List<ClassportInfo> directDeps = sbom.values().stream()
+        if (sbom.isEmpty())
+            throw new IllegalArgumentException("No dependencies found.");
+
+        projectRoot = sbom
+                .values().stream()
+                .filter(dep -> dep.id() == dep.sourceProjectId())
+                .findFirst()
+                .map(ann -> new SBOMNode(ann.id(), sbom));
+
+        List<ClassportInfo> directDeps = sbom
+                .values().stream()
                 .filter(dep -> dep.isDirectDependency())
                 .collect(Collectors.toList());
 
         directDependencies = new ArrayList<SBOMNode>();
         for (ClassportInfo dep : directDeps) {
+            projectRootId = dep.sourceProjectId();
             if (sbom.containsKey(dep.id()))
                 directDependencies.add(new SBOMNode(dep.id(), sbom));
         }
     }
 
     public void writeTree(Writer out) {
-        for (int i = 0; i < directDependencies.size(); ++i) {
-            SBOMNode dep = directDependencies.get(i);
-            // We're at nest level one for each direct dependency
-            dep._writeTree(out, 1, i == (directDependencies.size() - 1));
+        if (projectRoot.isPresent()) {
+            projectRoot.get()._writeTree(out, 0, true);
+        } else {
+            try {
+                out.write(projectRootId + " (parent-only artefact)\n");
+            } catch (IOException e) {
+                System.err.println("Unable to write source project ID: " + e.getMessage());
+            }
+
+            for (int i = 0; i < directDependencies.size(); ++i) {
+                SBOMNode dep = directDependencies.get(i);
+                // Direct dependencies are considered to be at nest level 1
+                dep._writeTree(out, 1, i == (directDependencies.size() - 1));
+            }
         }
 
         // Make sure everything's written properly
         try {
             out.flush();
-        } catch (
-
-        IOException e) {
+        } catch (IOException e) {
             System.err.println("Unable to flush output stream");
         }
     }

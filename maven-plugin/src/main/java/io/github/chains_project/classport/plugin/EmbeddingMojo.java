@@ -20,6 +20,7 @@ import io.github.chains_project.classport.commons.*;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugins.annotations.Component;
+import org.apache.maven.plugins.annotations.Execute;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Dependency;
 import org.apache.maven.plugin.AbstractMojo;
@@ -34,11 +35,20 @@ import org.apache.maven.project.ProjectBuilder;
 import org.apache.maven.project.ProjectBuildingException;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Mojo(name = "embed", defaultPhase = LifecyclePhase.GENERATE_RESOURCES, requiresDependencyResolution = ResolutionScope.TEST)
+@Execute(phase = LifecyclePhase.COMPILE)
 public class EmbeddingMojo
         extends AbstractMojo {
     /**
@@ -55,6 +65,18 @@ public class EmbeddingMojo
 
     @Component
     private ProjectBuilder projectBuilder;
+
+    /**
+     * Directory containing the classes and resource files that should be packaged
+     * into the JAR.
+     */
+    @Parameter(defaultValue = "${project.build.outputDirectory}", required = true)
+    private File classesDirectory;
+
+    /*
+     * TODO: Move into classport commons along with all other instances
+     */
+    private static final byte[] magicBytes = new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE };
 
     /**
      * Builds a {@link MavenProject} from an {@link Artifact}
@@ -91,24 +113,67 @@ public class EmbeddingMojo
                 + ":" + a.getVersion();
     }
 
+    private void embedDirectory(Artifact a) throws IOException, MojoExecutionException {
+        embedDirectory(a, a.getFile());
+    }
+
+    private void embedDirectory(Artifact a, File dirToWalk) throws IOException, MojoExecutionException {
+        ClassportInfo metadata = getMetadata(a);
+        if (!dirToWalk.exists()) {
+            getLog().info("No classes compiled for " + project.getArtifactId() + ". Skipping.");
+            return;
+        }
+
+        getLog().info("Processing compiled classes in '" + dirToWalk + "'");
+        Files.walkFileTree(dirToWalk.toPath(), new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                try (FileInputStream in = new FileInputStream(file.toFile())) {
+                    byte[] bytes = in.readAllBytes();
+
+                    if (Arrays.equals(Arrays.copyOfRange(bytes, 0, 4), magicBytes)) {
+                        MetadataAdder adder = new MetadataAdder(bytes);
+                        try (FileOutputStream out = new FileOutputStream(file.toFile())) {
+                            out.write(adder.add(metadata));
+                        }
+                    }
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
     public void execute() throws MojoExecutionException, MojoFailureException {
         Set<Artifact> dependencyArtifacts = project.getArtifacts();
 
-        // There's no way to differentiate between "the directory already exists"
-        // and "failed to create the directory" without checking for existance too
-        // so just allow overwriting as that's probably what we want anyway (?)
+        // Each module gets its own classport directory
         File localrepoRoot = new File(project.getBasedir() + "/classport-files");
         localrepoRoot.mkdir();
 
+        getLog().info("Processing project class files");
+        try {
+            embedDirectory(project.getArtifact(), classesDirectory);
+        } catch (IOException e) {
+            getLog().error("Failed to embed annotations in project class files: " + e);
+        }
+
+        getLog().info("Processing dependencies");
         for (Artifact artifact : dependencyArtifacts) {
             try {
                 ClassportInfo meta = getMetadata(artifact);
                 String artefactPath = getArtefactPath(artifact, true);
-                JarHelper pkgr = new JarHelper(artifact.getFile(),
-                        new File(localrepoRoot + "/" + artefactPath),
-                        /* overwrite target if exists? */ true);
-                getLog().info("Embedding metadata for " + artifact);
-                pkgr.embed(meta);
+                getLog().debug("Embedding metadata for " + artifact);
+                if (artifact.getFile().isFile()) {
+                    JarHelper pkgr = new JarHelper(artifact.getFile(),
+                            new File(localrepoRoot + "/" + artefactPath),
+                            /* overwrite target if exists? */ true);
+                    pkgr.embed(meta);
+                } else if (artifact.getFile().isDirectory()) {
+                    embedDirectory(artifact);
+                } else {
+                    getLog().warn("Skipping " + artifact.getArtifactId()
+                            + " since it does not seem to reside in either a file nor a directory");
+                }
             } catch (IOException e) {
                 getLog().error("Failed to embed metadata for " + artifact + ": " + e);
             }
@@ -124,7 +189,9 @@ public class EmbeddingMojo
         String aId = getArtifactLongId(artifact);
         boolean isDirectDependency = this.project.getDependencies().stream().map(dep -> getDependencyLongId(dep))
                 .collect(Collectors.toList()).contains(aId);
+
         return new ClassportHelper().getInstance(
+                getArtifactLongId(project.getArtifact()), // TODO: Make into a constant
                 isDirectDependency,
                 aId,
                 artifact.getArtifactId(),
