@@ -134,6 +134,7 @@ public class EmbeddingMojo
                     if (Arrays.equals(Arrays.copyOfRange(bytes, 0, 4), magicBytes)) {
                         MetadataAdder adder = new MetadataAdder(bytes);
                         try (FileOutputStream out = new FileOutputStream(file.toFile())) {
+                            getLog().debug("Embedding metadata in detected class file: " + file);
                             out.write(adder.add(metadata));
                         }
                     }

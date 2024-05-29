@@ -56,7 +56,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public AnnotationVisitor visitAnnotation(String type,
             boolean visible) {
-        if (visible && type.equals(annotationInstance.annotationType().getName())) {
+        if (visible && type.equals(annotationInstance.annotationType().descriptorString())) {
             isAnnotationPresent = true;
         }
         return cv.visitAnnotation(type, visible);
