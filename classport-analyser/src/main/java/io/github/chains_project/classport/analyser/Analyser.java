@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.PushbackInputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -51,7 +52,11 @@ public class Analyser {
                     ClassInfo info = ClassNameExtractor.getInfo(classFileBytes);
                     if (ann == null) {
                         // Increment no. of classes from this package
-                        String packageName = info.name.substring(0, info.name.lastIndexOf("/")).replace('/', '.');
+                        String packageName;
+                        if (info.name.contains("/"))
+                            packageName = info.name.substring(0, info.name.lastIndexOf("/")).replace('/', '.');
+                        else
+                            packageName = info.name;
                         noAnnotations.put(packageName, noAnnotations.getOrDefault(packageName, 0) + 1);
                     } else {
                         sbom.put(ann.id(), ann);
@@ -73,8 +78,14 @@ public class Analyser {
     private static void printDepTree(JarFile jar) {
         HashMap<String, ClassportInfo> sbom = getSBOM(jar);
         ClassportProject proj = new ClassportProject(sbom);
-        System.out.println("Dependency tree:");
         proj.writeTree(new PrintWriter(System.out));
+    }
+
+    private static void printDepList(JarFile jar) {
+        HashMap<String, ClassportInfo> sbom = getSBOM(jar);
+        for (ClassportInfo c : sbom.values())
+            if (c.id() != c.sourceProjectId())
+                System.out.println(c.id());//+ ", deps = " + String.join(", ", c.childIds()));
     }
 
     /*
@@ -175,8 +186,11 @@ public class Analyser {
 
     public static void main(String[] args) {
         // TODO: Use picocli for a nicer interface
-        if (args.length != 2 || (!args[0].equals("-generateTestJar") && !args[0].equals("-printTree"))) {
-            System.err.println("Usage: -<printTree|generateTestJar> <jarFile>");
+        if (args.length != 2 ||
+                (!args[0].equals("-generateTestJar")
+                        && !args[0].equals("-printTree")
+                        && !args[0].equals("-printList"))) {
+            System.err.println("Usage: -<printList|printTree|generateTestJar> <jarFile>");
             System.exit(1);
         }
 
@@ -190,6 +204,8 @@ public class Analyser {
 
         if (args[0].equals("-printTree")) {
             printDepTree(jar);
+        } else if (args[0].equals("-printList")) {
+            printDepList(jar);
         } else if (args[0].equals("-generateTestJar")) {
             System.out.println("Generating test jar...");
             String regenJarName = "regenerated-program.jar";
