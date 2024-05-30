@@ -25,18 +25,27 @@ public class ClassportAgent {
     private static final ArrayList<String> noAnnotations = new ArrayList<>();
 
     // TODO: Output in a useful format (JSON?)
-    private static void writeSBOM(Map<String, ClassportInfo> sbom, File outputFile) throws IOException {
-        Writer writer = outputFile == null ? new OutputStreamWriter(System.out) : new FileWriter(outputFile);
+    private static void writeSBOM(Map<String, ClassportInfo> sbom) throws IOException {
+        File treeOutputFile = new File("classport-deps-tree");
+        File listOutputFile = new File("classport-deps-list");
 
-        // Model the SBOM as a hierarchical project
-        ClassportProject proj = new ClassportProject(sbom);
-
-        try (BufferedWriter bufWriter = new BufferedWriter(writer)) {
+        try (BufferedWriter bufWriter = new BufferedWriter(new FileWriter(treeOutputFile))) {
+            // Model the SBOM as a hierarchical project
+            ClassportProject proj = new ClassportProject(sbom);
             proj.writeTree(bufWriter);
         } catch (IOException e) {
-            System.err.println("Error writing SBOM: " + e.getMessage());
+            System.err.println("Error writing dependency tree: " + e.getMessage());
         }
 
+        try (BufferedWriter bufWriter = new BufferedWriter(new FileWriter(listOutputFile))) {
+            for (ClassportInfo c : sbom.values())
+                if (c.id() != c.sourceProjectId()) {
+                    bufWriter.write(c.id());
+                    bufWriter.newLine();
+                }
+        } catch (IOException e) {
+            System.err.println("Error writing dependency list: " + e.getMessage());
+        }
     }
 
     public static void premain(String argument, Instrumentation instrumentation) {
@@ -74,9 +83,9 @@ public class ClassportAgent {
             instrumentation.removeTransformer(transformer);
 
             try {
-                writeSBOM(sbom, new File("classport-sbom"));
+                writeSBOM(sbom);
             } catch (IOException e) {
-                System.err.println("Unable to print SBOM: " + e.getMessage());
+                System.err.println("Unable to write dependencies: " + e.getMessage());
             }
         });
         Runtime.getRuntime().addShutdownHook(printingHook);
