@@ -163,12 +163,20 @@ public class EmbeddingMojo
             try {
                 ClassportInfo meta = getMetadata(artifact);
                 String artefactPath = getArtefactPath(artifact, true);
+                File artefactFullPath = new File(localrepoRoot + "/" + artefactPath);
                 getLog().debug("Embedding metadata for " + artifact);
                 if (artifact.getFile().isFile()) {
                     JarHelper pkgr = new JarHelper(artifact.getFile(),
-                            new File(localrepoRoot + "/" + artefactPath),
+                            artefactFullPath,
                             /* overwrite target if exists? */ true);
                     pkgr.embed(meta);
+
+                    // Also copy POMs to classport dir
+                    File pomFile = new File(artifact.getFile().getAbsolutePath().replace(".jar", ".pom"));
+                    File pomDestFile = new File(artefactFullPath.getAbsolutePath().replace(".jar", ".pom"));
+                    if (pomFile.isFile() && !pomDestFile.exists())
+                        Files.copy(Path.of(pomFile.getAbsolutePath()),
+                                Path.of(pomDestFile.getAbsolutePath()));
                 } else if (artifact.getFile().isDirectory()) {
                     embedDirectory(artifact);
                 } else {
