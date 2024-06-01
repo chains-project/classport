@@ -200,6 +200,7 @@ public class EmbeddingMojo
                 artifact.getVersion(),
                 dependencyProject.getModel().getDependencies()
                         .stream()
+                        .filter(transitiveDep -> !transitiveDep.getScope().equals(Artifact.SCOPE_TEST))
                         .map(transitiveDep -> getDependencyLongId(transitiveDep))
                         .collect(Collectors.toList()).toArray(String[]::new));
     }
