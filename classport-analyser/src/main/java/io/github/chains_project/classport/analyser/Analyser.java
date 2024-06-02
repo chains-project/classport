@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -85,7 +86,11 @@ public class Analyser {
         HashMap<String, ClassportInfo> sbom = getSBOM(jar);
         for (ClassportInfo c : sbom.values())
             if (c.id() != c.sourceProjectId())
-                System.out.println(c.id());//+ ", deps = " + String.join(", ", c.childIds()));
+                System.out.println(c.id());
+    }
+
+    private static final boolean generateTestJar(JarFile jar, String outFileName) {
+        return generateTestJar(jar, outFileName, List.of());
     }
 
     /*
@@ -94,7 +99,7 @@ public class Analyser {
      *
      * @return true if successful, false if not
      */
-    private static final boolean generateTestJar(JarFile jar, String outFileName) {
+    private static final boolean generateTestJar(JarFile jar, String outFileName, List<String> excludedClasses) {
         // Check the manifest, find the main class
         String className, mainClass;
         HashMap<String, String> classesToLoad = new HashMap<>();
@@ -130,7 +135,8 @@ public class Analyser {
                         // Increment no. of classes from this package
                         String packageName = className.substring(0, className.lastIndexOf("/")).replace('/', '.');
                         noAnnotations.put(packageName, noAnnotations.getOrDefault(packageName, 0) + 1);
-                    } else if (isPublic && !className.contains("package-info")) {
+                    } else if (isPublic && !className.contains("package-info")
+                            && !excludedClasses.contains(className)) {
                         // Not a valid class due to "-"
                         classesToLoad.put(ann.id(), className);
                     }
@@ -185,12 +191,13 @@ public class Analyser {
     }
 
     public static void main(String[] args) {
-        // TODO: Use picocli for a nicer interface
-        if (args.length != 2 ||
+        // TODO: Use picocli for a nicer interface. This is... not ideal.
+        if (args.length < 2 ||
                 (!args[0].equals("-generateTestJar")
                         && !args[0].equals("-printTree")
                         && !args[0].equals("-printList"))) {
-            System.err.println("Usage: -<printList|printTree|generateTestJar> <jarFile>");
+            System.err.println(
+                    "Usage: -<printList|printTree|generateTestJar> <jarFile> [dontUseTheseClassesForGeneration...]");
             System.exit(1);
         }
 
@@ -207,9 +214,17 @@ public class Analyser {
         } else if (args[0].equals("-printList")) {
             printDepList(jar);
         } else if (args[0].equals("-generateTestJar")) {
+            ArrayList<String> excludeClasses = new ArrayList<>();
+            // The rest of the arguments are classes to ignore
+            for (int i = 2; i < args.length; ++i)
+                excludeClasses.add(args[i]);
+
             System.out.println("Generating test jar...");
+            if (!excludeClasses.isEmpty())
+                System.out.println("Ignored classes: " + String.join(", ", excludeClasses));
+
             String regenJarName = "regenerated-program.jar";
-            if (generateTestJar(jar, regenJarName))
+            if (generateTestJar(jar, regenJarName, excludeClasses))
                 System.out.println("Generation complete. " +
                         "Regenerated JAR created at '" + regenJarName + "'");
         }
