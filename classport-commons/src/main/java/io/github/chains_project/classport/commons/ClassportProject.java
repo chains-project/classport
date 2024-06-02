@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Stack;
 import java.util.stream.Collectors;
 
 public class ClassportProject {
@@ -97,6 +98,10 @@ public class ClassportProject {
          * failing that, fall back on matching group + artefact.
          */
         private void buildGraph() {
+            buildGraph(new Stack<>());
+        }
+
+        private void buildGraph(Stack<String> path) {
             outer: for (String childId : meta.childIds()) {
                 // Have we already resolved this node?
                 if (nodes.containsKey(childId)) {
@@ -115,23 +120,37 @@ public class ClassportProject {
                         }
                     }
 
-                    // We have not generated a node for this dependency before. Do so now.
+                    // We have not generated a node for this dependency before.
+                    String newNodeId = new String();
                     if (sbom.containsKey(childId)) {
-                        SBOMNode n = new SBOMNode(sbom.get(childId));
-                        n.buildGraph();
-                        childNodes.add(n);
-                        nodes.put(childId, n);
+                        // We've used the exact version specified in the deps
+                        newNodeId = childId;
                     } else {
                         // `childId` is never used. However, it might just be a version mismatch.
                         for (String usedDepId : sbom.keySet()) {
                             if (usedDepId.contains(childIdWithoutVersion)) {
                                 // Maven has packaged another version, reflect this in the new node
-                                SBOMNode n = new SBOMNode(sbom.get(usedDepId));
-                                n.buildGraph();
-                                childNodes.add(n);
-                                nodes.put(usedDepId, n);
+                                newNodeId = usedDepId;
                             }
                         }
+                    }
+
+                    // TODO: Do we want to choose when to stop based on scope?
+                    // e.g. "provided" -> stop, "compile" -> continue
+                    //
+                    // If we have a matching dependency which has not appeared
+                    // earlier in our traversal, add it
+                    if (!newNodeId.isEmpty() && !path.contains(newNodeId)) {
+                        SBOMNode n = new SBOMNode(sbom.get(newNodeId));
+
+                        // Trace where we've been to avoid endless recursion for
+                        // dependency cycles (see commons-lang3 and commons-text)
+                        path.push(newNodeId);
+                        n.buildGraph(path);
+                        path.pop();
+
+                        childNodes.add(n);
+                        nodes.put(newNodeId, n);
                     }
                 }
             }
