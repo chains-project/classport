@@ -102,10 +102,12 @@ public class ClassportProject {
                 if (nodes.containsKey(childId)) {
                     childNodes.add(nodes.get(childId));
                 } else {
-                    // Have we already resolved the artefact with another version? If so, this is
-                    // the one to use
+                    // Have we already resolved the artefact with another version?
+                    // The ID will always contain at least `group:artefact:`
+                    String[] parts = childId.split(":");
+                    String childIdWithoutVersion = parts[0] + ":" + parts[1] + ":";
+
                     for (String usedDepId : nodes.keySet()) {
-                        String childIdWithoutVersion = meta.group() + ":" + meta.artefact() + ":";
                         if (usedDepId.contains(childIdWithoutVersion)) {
                             // Maven has packaged another version, reflect this in the child node
                             childNodes.add(nodes.get(usedDepId));
@@ -113,8 +115,7 @@ public class ClassportProject {
                         }
                     }
 
-                    // We have not resolved the node before
-                    // Generate the node and add it to the found nodes
+                    // We have not generated a node for this dependency before. Do so now.
                     if (sbom.containsKey(childId)) {
                         SBOMNode n = new SBOMNode(sbom.get(childId));
                         n.buildGraph();
@@ -123,9 +124,6 @@ public class ClassportProject {
                     } else {
                         // `childId` is never used. However, it might just be a version mismatch.
                         for (String usedDepId : sbom.keySet()) {
-                            // The ID will always contain at least `group:artefact:`
-                            String[] parts = childId.split(":");
-                            String childIdWithoutVersion = parts[0] + ":" + parts[1] + ":";
                             if (usedDepId.contains(childIdWithoutVersion)) {
                                 // Maven has packaged another version, reflect this in the new node
                                 SBOMNode n = new SBOMNode(sbom.get(usedDepId));
