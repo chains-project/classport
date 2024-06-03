@@ -108,9 +108,8 @@ public class ClassportProject {
                     childNodes.add(nodes.get(childId));
                 } else {
                     // Have we already resolved the artefact with another version?
-                    // The ID will always contain at least `group:artefact:`
-                    String[] parts = childId.split(":");
-                    String childIdWithoutVersion = parts[0] + ":" + parts[1] + ":";
+                    // Version will always be last in the ID
+                    String childIdWithoutVersion = childId.substring(0, childId.lastIndexOf(":"));
 
                     for (String usedDepId : nodes.keySet()) {
                         if (usedDepId.contains(childIdWithoutVersion)) {
