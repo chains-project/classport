@@ -48,8 +48,11 @@ public class ClassportProject {
                 directDependencies = new ArrayList<SBOMNode>();
                 for (ClassportInfo dep : directDeps) {
                     projectRootId = dep.sourceProjectId();
-                    if (sbom.containsKey(dep.id()))
-                        directDependencies.add(new SBOMNode(dep));
+                    if (sbom.containsKey(dep.id())) {
+                        SBOMNode n = new SBOMNode(dep);
+                        n.buildGraph();
+                        directDependencies.add(n);
+                    }
                 }
             }
         }
@@ -134,9 +137,6 @@ public class ClassportProject {
                         }
                     }
 
-                    // TODO: Do we want to choose when to stop based on scope?
-                    // e.g. "provided" -> stop, "compile" -> continue
-                    //
                     // If we have a matching dependency which has not appeared
                     // earlier in our traversal, add it
                     if (!newNodeId.isEmpty() && !path.contains(newNodeId)) {
