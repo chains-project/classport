@@ -89,7 +89,7 @@ public class AnnotationReader {
 
         @Override
         public AnnotationVisitor visitAnnotation(String desc, boolean vis) {
-            if (desc.equals(annotationClass.descriptorString())) {
+            if (desc.equals(Utils.descriptorString(annotationClass))) {
                 return new AnnotationParser(annotationValues);
             }
             return super.visitAnnotation(desc, vis);

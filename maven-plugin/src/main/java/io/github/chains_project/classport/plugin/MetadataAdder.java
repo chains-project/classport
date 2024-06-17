@@ -5,6 +5,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 import io.github.chains_project.classport.commons.ClassportInfo;
+import io.github.chains_project.classport.commons.Utils;
 
 import org.objectweb.asm.*;
 
@@ -56,7 +57,7 @@ class AnnotationAdder extends ClassVisitor {
     @Override
     public AnnotationVisitor visitAnnotation(String type,
             boolean visible) {
-        if (visible && type.equals(annotationInstance.annotationType().descriptorString())) {
+        if (visible && type.equals(Utils.descriptorString(annotationInstance.annotationType()))) {
             isAnnotationPresent = true;
         }
         return cv.visitAnnotation(type, visible);
@@ -107,7 +108,7 @@ class AnnotationAdder extends ClassVisitor {
 
     private void addAnnotation() {
         if (!isAnnotationPresent) {
-            String internalName = annotationInstance.annotationType().descriptorString();
+            String internalName = Utils.descriptorString(annotationInstance.annotationType());
             AnnotationVisitor av = cv.visitAnnotation(internalName, true);
             if (av != null) {
                 try {
