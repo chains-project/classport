@@ -84,9 +84,22 @@ public class Analyser {
 
     private static void printDepList(JarFile jar) {
         HashMap<String, ClassportInfo> sbom = getSBOM(jar);
-        for (ClassportInfo c : sbom.values())
-            if (c.id() != c.sourceProjectId())
+        String project = "";
+        boolean usesDependencies = false;
+        for (ClassportInfo c : sbom.values()) {
+            project = c.sourceProjectId();
+            if (c.id() != c.sourceProjectId()) {
+                usesDependencies = true;
                 System.out.println(c.id());
+            }
+        }
+
+        if (sbom.isEmpty())
+            System.out.println("No annotations found");
+        else if (!usesDependencies)
+            // `project` will always be assigned if sbom is non-empty
+            System.out.println("No dependencies found (all class files belong to " + project + ")");
+
     }
 
     private static final boolean generateTestJar(JarFile jar, String outFileName) {
