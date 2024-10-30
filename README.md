@@ -34,4 +34,5 @@ may differ (e.g. a direct dependency for one module is a transitive one for anot
 Finally, run the packaged JAR using the `-javaagent:path-to-classport-agent` flag.
 
 ## The thesis behind this project
-Link TBA
+
+[The Embedding and Retrieval of Software Supply Chain Information in Java Applications](https://kth.diva-portal.org/smash/record.jsf?dswid=7855&pid=diva2%3A1905606&c=1&searchType=SIMPLE&language=en&query=The+Embedding+and+Retrieval+of+Software+Supply+Chain+Information+in+Java+Applications&af=%5B%5D&aq=%5B%5B%5D%5D&aq2=%5B%5B%5D%5D&aqe=%5B%5D&noOfRows=50&sortOrder=author_sort_asc&sortOrder2=title_sort_asc&onlyFullText=false&sf=all)
