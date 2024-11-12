@@ -22,13 +22,12 @@ The picture gives an overview of the structure of Classport. The structure is di
 
 ### Embedding Phase
 
-The input of this phase are the dependency JARs and the project source files.
-The embedder is responsible for embedding the supply chain information in form of Java Annotations into the class files.
+The inputs of this phase are the dependency JARs and the project source files.
+The embedder is responsible for embedding the supply chain information in the form of Java Annotations into the class files.
 This feature is implemented by the Maven plugin that
-modifies the JAR files during the build process and contained in the `classport.commons` package.
+modifies the JAR files during the build process and is contained in the `classport.commons` package.
 
-The embedded class files can be packaged together with the application, or just added to the class path in place of the "regular" versions of the class files. 
-
+The embedded class files can be packaged together with the application, or just added to the classpath in place of the "regular" versions of the class files. 
 ### Extracting Phase
 
 This is the phase in which the supply chain information is extracted.  
@@ -50,28 +49,35 @@ and modifying JAR files.
 
 ## Usage
 
-Package all the modules. From the root of the classport project:
+Package all the modules. From the root of the Classport project:
 
-`mvn package` 
+```console 
+mvn package
+```
 
-Use the maven plugin to embed supply chain information into the class files of the project using the `embed` goal. From the root of the analysed application:
+Use the Maven plugin to embed supply chain information into the class files of the project using the `embed` goal. From the root directory of the analysed Maven project:
 
-`mvn io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed`
-
+```console
+mvn io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
+```
 The `embed` goal of the Maven plugin retrieves a list of project dependencies and their corresponding JAR files, embeds the annotation into all class files within each JAR, and recreates what can be seen as a dependency-only Maven local repository in the `classport-files` directory.
 
 The JAR files from within there can then be included in the class path with the `-cp` flag as per usual.
 
 For projects that get packaged into an Uber-JAR:
 
-`mvn package -Dmaven.repo.local=classport-files`
+```console
+mvn package -Dmaven.repo.local=classport-files
+```
 
 For multi-module projects, package each project separately as dependency properties
 may differ (e.g. a direct dependency for one module is a transitive one for another).
 
 Use the agent to detect the used classes:
 
-`java -javaagent:<path-to-agent-jar> -jar <path-to-app-jar>`
+```console
+java -javaagent:<path-to-agent-jar> -jar <path-to-app-jar>
+```
 
 This command outputs the **runtime representation** of the software supply chain of the analysed project:
 - `classport-deps-list` --> flat list of dependencies
