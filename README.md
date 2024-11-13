@@ -73,6 +73,7 @@ mvn package -Dmaven.repo.local=classport-files
 For multi-module projects, package each project separately as dependency properties
 may differ (e.g. a direct dependency for one module is a transitive one for another).
 
+### Dynamic analysis
 Use the agent to detect the used classes:
 
 ```console
@@ -82,6 +83,18 @@ java -javaagent:<path-to-agent-jar> -jar <path-to-app-jar>
 This command outputs the **runtime representation** of the software supply chain of the analysed project:
 - `classport-deps-list` --> flat list of dependencies
 - `classport-deps-tree` --> tree of dependnecies
+
+### Static analysis
+
+This is the command to perform static analysis:
+```console
+java -jar <path-to-analyzer-jar> -<printList|printTree|generateTestJar> <jarFile> [classes-to-be-ignored]
+```
+
+The available flags are:
+* `-printList`, for statically generating a flat list of dependencies.
+* `-printTree`, for staticaly generating a dependencies tree.
+* `-generateTestJar`, for generating a JAR file where the main class has been modified to force-load classes from all dependencies.
 
 ## Requirements
 
