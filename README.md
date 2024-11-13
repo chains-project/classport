@@ -92,8 +92,22 @@ java -jar <path-to-analyzer-jar> -<printList|printTree|generateTestJar> <jarFile
 ```
 
 The available flags are:
-* `-printList`, for statically generating a flat list of dependencies.
-* `-printTree`, for staticaly generating a dependencies tree.
+* `-printList`, for statically generating a flat list of dependencies. Below is an example of the command output on a simple Java application with only one dependency.
+
+```
+[Warning] 1 class file(s) detected without annotation for package org.example
+org.apache.commons:commons-lang3:jar:3.17.0
+```
+* `-printTree`, for staticaly generating a dependencies tree. Below is an example of the command output on a simple Java application with only one dependency.
+
+```
+[Warning] 1 class file(s) detected without annotation for package org.example
+org.example:hello:jar:0.1.0 (parent-only artefact)
+\- org.apache.commons:commons-lang3:jar:3.17.0
+```
+
+
+
 * `-generateTestJar`, for generating a JAR file where the main class has been modified to force-load classes from all dependencies.
 
 ## Requirements
