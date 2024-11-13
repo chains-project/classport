@@ -25,7 +25,7 @@ The picture gives an overview of the structure of Classport. The structure is di
 The inputs of this phase are the dependency JARs and the project source files.
 The embedder is responsible for embedding the supply chain information in the form of Java Annotations into the class files.
 This feature is implemented by the Maven plugin that
-modifies the JAR files during the build process and is contained in the `classport.commons` package.
+modifies the JAR files during the build process and is contained in the `classport.commons` module.
 
 The embedded class files can be packaged together with the application, or just added to the classpath in place of the "regular" versions of the class files. 
 ### Extracting Phase
