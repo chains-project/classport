@@ -8,7 +8,7 @@ Classport's main objective is to make software supply chain information availabl
 
 To reach this goal it:
 
-* **Embedds** supply chain metadata in each class file that is to be part of the application
+* **Embeds** supply chain metadata in each class file that is to be part of the application during build time.
 * **Monitors** the class loaded by the running application and **extracts** the embedded Software Supply Chain information from the loaded classes. 
 
 In this way, Classport is able to accurately connect the loaded classes to their corresponding upstream dependencies and build a runtime representation of the application’s code-related supply chain.
