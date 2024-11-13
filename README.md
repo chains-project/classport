@@ -4,7 +4,7 @@
 
 **Classport** is a collection of tools that work together to enable **accurate runtime inspection of the supply chain in Maven Java programs**. 
 
-Classport's main objective is to make available information on the software supply chain at runtime.
+Classport's main objective is to make software supply chain information available at runtime.
 
 To reach this goal it:
 
