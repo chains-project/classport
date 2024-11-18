@@ -7,3 +7,6 @@ target/
 .factorypath
 .project
 .settings/
+
+# vscode settings
+settings.json
