@@ -159,7 +159,6 @@ public class EmbeddingMojoTest {
 
         Invoker invoker = new DefaultInvoker();
         
-        invoker.setMavenHome(new File("/usr/local/bin/mvn")); 
 
         InvocationResult result = invoker.execute(request);
         return result.getExitCode();
