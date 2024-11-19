@@ -33,10 +33,11 @@ import io.github.chains_project.classport.commons.ClassportInfo;
 public class EmbeddingMojoTest {
 
     private final Class<?> annotationClass = ClassportInfo.class; 
+    private final String annotatedProjectClassPath = "src/test/resources/test-app/target/classes/org/example/Main.class";
+
     @TempDir
     Path tempDir;
 
-    // Test is project classes are embedded, i.e., they have annotations
     @Test
     void shouldEmbedAllProjectClasses_whenPluginRuns() throws MavenInvocationException, IOException {
 
@@ -48,7 +49,13 @@ public class EmbeddingMojoTest {
         assertTrue(classportFilesDir.exists(), "Classport-files dir not found. Something wrong in execution of the Maven plugin.");
 
         assertTrue(areAllClassesEmbedded(projectClassFilesDir, true), "Not all project classes are embedded with ClassportInfo annotation");
-        
+        checkAnnotationValues(
+            "org.example",
+            "0.1.0",
+            "org.example:hello:jar:0.1.0",
+            "hello"
+        );
+
         cleanUpArtifactsDir(projectClassFilesDir.toPath());
         cleanUpArtifactsDir(classportFilesDir.toPath());
     }
@@ -205,6 +212,39 @@ public class EmbeddingMojoTest {
             ex.printStackTrace();
             return false;
         }
+    }
+
+    private void checkAnnotationValues(String expectedGroup, String expectedVersion, String expectedId, String expectedArtefac) throws IOException {
+        // Load the class file
+        byte[] classBytes = Files.readAllBytes(Paths.get(annotatedProjectClassPath));
+        ClassReader classReader = new ClassReader(classBytes);
+
+        // Analyze the class using a custom ClassVisitor
+        classReader.accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                if (descriptor.equals(annotationClass.descriptorString())) {
+                    return new AnnotationVisitor(Opcodes.ASM9) {
+                        @Override
+                        public void visit(String name, Object value) {
+                            if ("group".equals(name)) {
+                                assertEquals(expectedGroup, value, "Annotation field 'value' is incorrect");
+                            }
+                            if ("version".equals(name)) {
+                                assertEquals(expectedVersion, value, "Annotation field 'version' is incorrect");
+                            }
+                            if ("id".equals(name)) {
+                                assertEquals(expectedId, value, "Annotation field 'id' is incorrect");
+                            }
+                            if ("artefact".equals(name)) {
+                                assertEquals(expectedArtefac, value, "Annotation field 'artefact' is incorrect");
+                            }
+                        }
+                    };
+                }
+                return super.visitAnnotation(descriptor, visible);
+            }
+        }, 0);
     }
     
 }
