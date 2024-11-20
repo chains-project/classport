@@ -1,8 +1,6 @@
 # Classport
 
-## About
-
-**Classport** is a collection of tools that work together to enable **accurate runtime inspection of the supply chain in Maven Java programs**. 
+**Classport** is a tool to enable accurate runtime inspection of the supply chain in Maven Java programs. 
 
 Classport's main objective is to make software supply chain information available at runtime.
 
@@ -12,6 +10,8 @@ To reach this goal it:
 * **Monitors** the class loaded by the running application and **extracts** the embedded Software Supply Chain information from the loaded classes. 
 
 In this way, Classport is able to accurately connect the loaded classes to their corresponding upstream dependencies and build a runtime representation of the application’s code-related supply chain.
+
+See [The Embedding and Retrieval of Software Supply Chain Information in Java Applications (Master's thesis Daniel Williams, KTH, 2024)](https://kth.diva-portal.org/smash/record.jsf?dswid=7855&pid=diva2%3A1905606&c=1&searchType=SIMPLE&language=en&query=The+Embedding+and+Retrieval+of+Software+Supply+Chain+Information+in+Java+Applications&af=%5B%5D&aq=%5B%5B%5D%5D&aq2=%5B%5B%5D%5D&aqe=%5B%5D&noOfRows=50&sortOrder=author_sort_asc&sortOrder2=title_sort_asc&onlyFullText=false&sf=all)
 
 
 ## Structure
@@ -113,6 +113,3 @@ org.example:hello:jar:0.1.0
 * Maven 
 * Java >= 17
 
-## The thesis behind this project
-
-[The Embedding and Retrieval of Software Supply Chain Information in Java Applications](https://kth.diva-portal.org/smash/record.jsf?dswid=7855&pid=diva2%3A1905606&c=1&searchType=SIMPLE&language=en&query=The+Embedding+and+Retrieval+of+Software+Supply+Chain+Information+in+Java+Applications&af=%5B%5D&aq=%5B%5B%5D%5D&aq2=%5B%5B%5D%5D&aqe=%5B%5D&noOfRows=50&sortOrder=author_sort_asc&sortOrder2=title_sort_asc&onlyFullText=false&sf=all)
