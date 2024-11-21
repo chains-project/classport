@@ -158,8 +158,8 @@ public class EmbeddingMojoTest {
         request.setBatchMode(true); 
 
         Invoker invoker = new DefaultInvoker();
-        boolean isMavenHomePresent = (System.getProperty("maven.home")!=null);
-        if (!isMavenHomePresent) {
+        String os = System.getProperty("os.name");
+        if (os.contains("Mac")) {
             invoker.setMavenHome(new File(System.getenv("M2_HOME")));
         }
         InvocationResult result = invoker.execute(request);
