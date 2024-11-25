@@ -26,6 +26,7 @@ public class ClassportAgentTest {
     private static final String CLASSPORT_TREE_PATH = RESOURCES_PATH + "classport-deps/classport-deps-tree";
     private static final String CLASSPORT_LIST_PATH = RESOURCES_PATH + "classport-deps/classport-deps-list";
     private static final String ANNOTATED_CLASS_PATH = RESOURCES_PATH + "annotated-classes/StringUtils.class";
+    private static final String NOT_ANNOTATED_CLASS_PATH = RESOURCES_PATH + "not-annotated-classes/StringUtils.class";
 
     @Test
     void shouldGenerateDependencyListAndTreeFiles() throws Exception {
@@ -91,7 +92,7 @@ public class ClassportAgentTest {
 
     @Test
     void shouldReturnNonAnnotatedClassesNull() throws Exception {
-        byte[] nonAnnotatedClassBytes = loadClassFromFile(new File("src/test/resources/notAnnotatedClasses/StringUtils.class")); 
+        byte[] nonAnnotatedClassBytes = loadClassFromFile(new File(NOT_ANNOTATED_CLASS_PATH)); 
         ClassportInfo actualAnnotation = AnnotationReader.getAnnotationValues(nonAnnotatedClassBytes);
         assertNull(actualAnnotation);
     }

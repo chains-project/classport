@@ -1,6 +1,7 @@
 target/
 *.class
 !classport-agent/src/test/resources/annotated-classes/StringUtils.class
+!classport-agent/src/test/resources/not-annotated-classes/StringUtils.class
 .DS_Store
 
 # jdtls/eclipse stuff
