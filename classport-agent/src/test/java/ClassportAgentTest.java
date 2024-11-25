@@ -12,6 +12,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
@@ -47,18 +48,29 @@ public class ClassportAgentTest {
         listFile.delete();
     }
 
-    private void invokeWriteSBOMMethod(HashMap<String, ClassportInfo> sbom)
-            throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
-        Class<?> clazz = ClassportAgent.class;
+    
+    @Test
+    void shouldHandleEmptySBOM() throws Exception {
+        HashMap<String, ClassportInfo> emptySBOM = new HashMap<>();
 
-        System.out.println("Current working directory: " + System.getProperty("user.dir"));
+        invokeWriteSBOMMethod(emptySBOM);
 
-        Method writeSBOMMethod = clazz.getDeclaredMethod("writeSBOM", Map.class);
-        writeSBOMMethod.setAccessible(true); 
+        File treeFile = new File(System.getProperty("user.dir"), "classport-deps-tree");
+        File listFile = new File(System.getProperty("user.dir"), "classport-deps-list");
 
-        writeSBOMMethod.invoke(null, sbom); 
+        assertTrue(treeFile.exists(), "Tree output file should be created even if SBOM is empty");
+        assertTrue(listFile.exists(), "List output file should be created even if SBOM is empty");
+
+        String treeContent = new String(Files.readAllBytes(treeFile.toPath()));
+        String expectedPlaceholder = "<Unknown> (parent-only artefact)";
+        
+        assertTrue(treeContent.contains(expectedPlaceholder), "Tree file should contain placeholder text when SBOM is empty");
+        assertTrue(listFile.length() == 0, "List file should be empty when SBOM is empty");
+
+        // Clean up after the test
+        treeFile.delete();
+        listFile.delete();
     }
-
 
     @Test
     void shouldAnnotationBeCorrectlyRead() throws IOException {
@@ -76,6 +88,14 @@ public class ClassportAgentTest {
             () -> assertEquals("org.apache.commons:commons-text:jar:1.12.0", actualAnnotation.childIds()[0])
         );        
     }
+
+    @Test
+    void shouldReturnNonAnnotatedClassesNull() throws Exception {
+        byte[] nonAnnotatedClassBytes = loadClassFromFile(new File("src/test/resources/notAnnotatedClasses/StringUtils.class")); 
+        ClassportInfo actualAnnotation = AnnotationReader.getAnnotationValues(nonAnnotatedClassBytes);
+        assertNull(actualAnnotation);
+    }
+
 
     private byte[] loadClassFromFile(File classFile) throws IOException {
     try (InputStream inputStream = new FileInputStream(classFile)) {
@@ -126,6 +146,18 @@ public class ClassportAgentTest {
             @Override public String[] childIds() { return childIds; }
             @Override public Class<? extends Annotation> annotationType() { return ClassportInfo.class; }
         };
+    }
+
+    private void invokeWriteSBOMMethod(HashMap<String, ClassportInfo> sbom)
+            throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
+        Class<?> clazz = ClassportAgent.class;
+
+        System.out.println("Current working directory: " + System.getProperty("user.dir"));
+
+        Method writeSBOMMethod = clazz.getDeclaredMethod("writeSBOM", Map.class);
+        writeSBOMMethod.setAccessible(true); 
+
+        writeSBOMMethod.invoke(null, sbom); 
     }
 
 }
