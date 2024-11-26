@@ -27,7 +27,7 @@ public class ClassportAgentTest {
 
     @Test
     void shouldGenerateDependencyListAndTreeFiles() throws Exception {
-        HashMap<String, ClassportInfo> sbom = getSBOM();
+        HashMap<String, ClassportInfo> sbom = mockSBOM();
 
         ClassportAgent.writeSBOM(sbom);
 
@@ -106,7 +106,7 @@ public class ClassportAgentTest {
 
     
 
-    private HashMap<String, ClassportInfo> getSBOM() {
+    private HashMap<String, ClassportInfo> mockSBOM() {
         HashMap<String, ClassportInfo> sbom = new HashMap<>();
         sbom.put("com.example:test-agent-app:jar:1.0-SNAPSHOT", 
                  createClassportInfo("com.example", "1.0-SNAPSHOT", 
