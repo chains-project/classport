@@ -6,6 +6,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,11 +23,10 @@ import io.github.chains_project.classport.commons.ClassportInfo;
 
 public class ClassportAgentTest {
 
-    private static final String RESOURCES_PATH = "src/test/resources/";
-    private static final String CLASSPORT_TREE_PATH = RESOURCES_PATH + "classport-deps/classport-deps-tree";
-    private static final String CLASSPORT_LIST_PATH = RESOURCES_PATH + "classport-deps/classport-deps-list";
-    private static final String ANNOTATED_CLASS_PATH = RESOURCES_PATH + "annotated-classes/StringUtils.class";
-    private static final String NOT_ANNOTATED_CLASS_PATH = RESOURCES_PATH + "not-annotated-classes/StringUtils.class";
+    private static final Path CLASSPORT_TREE_PATH = Path.of("src/test/resources/classport-deps/classport-deps-tree");
+    private static final Path CLASSPORT_LIST_PATH = Path.of("src/test/resources/classport-deps/classport-deps-list");
+    private static final Path ANNOTATED_CLASS_PATH = Path.of("src/test/resources/annotated-classes/StringUtils.class");
+    private static final Path NOT_ANNOTATED_CLASS_PATH = Path.of("src/test/resources/not-annotated-classes/StringUtils.class");
 
     @Test
     void shouldGenerateDependencyListAndTreeFiles() throws Exception {
@@ -41,8 +41,8 @@ public class ClassportAgentTest {
         assertAll(
             () -> assertTrue(treeFile.exists(), "Tree output file should be created"),
             () -> assertTrue(listFile.exists(), "List output file should be created"),
-            () -> assertTrue(compareFiles(treeFile, new File(CLASSPORT_TREE_PATH)), "Tree files should be identical."),
-            () -> assertTrue(compareFiles(listFile, new File(CLASSPORT_LIST_PATH)), "List files should be identical.")
+            () -> assertTrue(compareFiles(treeFile, CLASSPORT_TREE_PATH.toFile()), "Tree files should be identical."),
+            () -> assertTrue(compareFiles(listFile, CLASSPORT_LIST_PATH.toFile()), "List files should be identical.")
         );
 
         treeFile.delete();
@@ -75,7 +75,7 @@ public class ClassportAgentTest {
 
     @Test
     void shouldAnnotationBeCorrectlyRead() throws IOException {
-        File classFile = new File(ANNOTATED_CLASS_PATH);
+        File classFile = ANNOTATED_CLASS_PATH.toFile();
         byte[] buffer = loadClassFromFile(classFile);
         ClassportInfo actualAnnotation = AnnotationReader.getAnnotationValues(buffer);
 
@@ -92,7 +92,7 @@ public class ClassportAgentTest {
 
     @Test
     void shouldReturnNonAnnotatedClassesNull() throws Exception {
-        byte[] nonAnnotatedClassBytes = loadClassFromFile(new File(NOT_ANNOTATED_CLASS_PATH)); 
+        byte[] nonAnnotatedClassBytes = loadClassFromFile(NOT_ANNOTATED_CLASS_PATH.toFile()); 
         ClassportInfo actualAnnotation = AnnotationReader.getAnnotationValues(nonAnnotatedClassBytes);
         assertNull(actualAnnotation);
     }
@@ -152,8 +152,6 @@ public class ClassportAgentTest {
     private void invokeWriteSBOMMethod(HashMap<String, ClassportInfo> sbom)
             throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
         Class<?> clazz = ClassportAgent.class;
-
-        System.out.println("Current working directory: " + System.getProperty("user.dir"));
 
         Method writeSBOMMethod = clazz.getDeclaredMethod("writeSBOM", Map.class);
         writeSBOMMethod.setAccessible(true); 
