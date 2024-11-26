@@ -3,13 +3,10 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,9 +28,8 @@ public class ClassportAgentTest {
     @Test
     void shouldGenerateDependencyListAndTreeFiles() throws Exception {
         HashMap<String, ClassportInfo> sbom = getSBOM();
-        
-        // Invokation of private method WriteSBOM of ClassportAgent class
-        invokeWriteSBOMMethod(sbom);
+
+        ClassportAgent.writeSBOM(sbom);
 
         File treeFile = new File(System.getProperty("user.dir"), "classport-deps-tree");
         File listFile = new File(System.getProperty("user.dir"), "classport-deps-list");
@@ -54,7 +50,7 @@ public class ClassportAgentTest {
     void shouldHandleEmptySBOM() throws Exception {
         HashMap<String, ClassportInfo> emptySBOM = new HashMap<>();
 
-        invokeWriteSBOMMethod(emptySBOM);
+        ClassportAgent.writeSBOM(emptySBOM);
 
         File treeFile = new File(System.getProperty("user.dir"), "classport-deps-tree");
         File listFile = new File(System.getProperty("user.dir"), "classport-deps-list");
@@ -148,15 +144,4 @@ public class ClassportAgentTest {
             @Override public Class<? extends Annotation> annotationType() { return ClassportInfo.class; }
         };
     }
-
-    private void invokeWriteSBOMMethod(HashMap<String, ClassportInfo> sbom)
-            throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
-        Class<?> clazz = ClassportAgent.class;
-
-        Method writeSBOMMethod = clazz.getDeclaredMethod("writeSBOM", Map.class);
-        writeSBOMMethod.setAccessible(true); 
-
-        writeSBOMMethod.invoke(null, sbom); 
-    }
-
 }
