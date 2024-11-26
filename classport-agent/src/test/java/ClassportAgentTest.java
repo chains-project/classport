@@ -31,18 +31,24 @@ public class ClassportAgentTest {
 
         ClassportAgent.writeSBOM(sbom);
 
-        File treeFile = new File(System.getProperty("user.dir"), "classport-deps-tree");
-        File listFile = new File(System.getProperty("user.dir"), "classport-deps-list");
+        File actualTreeFile = new File(System.getProperty("user.dir"), "classport-deps-tree");
+        File actualListFile = new File(System.getProperty("user.dir"), "classport-deps-list");
         
         assertAll(
-            () -> assertTrue(treeFile.exists(), "Tree output file should be created"),
-            () -> assertTrue(listFile.exists(), "List output file should be created"),
-            () -> assertTrue(compareFiles(treeFile, CLASSPORT_TREE_PATH.toFile()), "Tree files should be identical."),
-            () -> assertTrue(compareFiles(listFile, CLASSPORT_LIST_PATH.toFile()), "List files should be identical.")
+            () -> assertTrue(actualTreeFile.exists(), "Tree output file should be created"),
+            () -> assertTrue(actualListFile.exists(), "List output file should be created"),
+            () -> assertEquals(
+                Files.readString(CLASSPORT_TREE_PATH),
+                Files.readString(actualTreeFile.toPath()), 
+                "Tree files should be identical"),
+            () -> assertEquals(                    
+                Files.readString(CLASSPORT_LIST_PATH),
+                Files.readString(actualListFile.toPath()), 
+                "List files should be identical")
         );
 
-        treeFile.delete();
-        listFile.delete();
+        actualTreeFile.delete();
+        actualListFile.delete();
     }
 
     
