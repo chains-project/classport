@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -105,11 +104,6 @@ public class ClassportAgentTest {
         return inputStream.readAllBytes();
         }
     }
-
-    private boolean compareFiles(File file1, File file2) throws IOException {
-        return Arrays.equals(Files.readAllBytes(file1.toPath()), Files.readAllBytes(file2.toPath()));
-    }
-
     
 
     private HashMap<String, ClassportInfo> mockSBOM() {
