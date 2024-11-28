@@ -28,6 +28,8 @@ class AnalyserTest {
     private final String addedClassName = "__classportForceClassLoading";
     private final String  addedClassDescriptor = "()V";
     private final Path annotatedClassPath = Path.of("src/test/resources/annotated-classes/Main.class");
+    private boolean methodPresent;
+    private boolean methodInvoked;
 
     @Test
     void testGetSBOM_withAnnotatedClasses() throws IOException {
@@ -73,22 +75,22 @@ class AnalyserTest {
     }
 
     private boolean isAdditionalMethodPresent(ClassReader classReader) {
-        final boolean[] methodPresent = {false}; 
+        methodPresent = false; 
         classReader.accept(new ClassVisitor(Opcodes.ASM9) {
             
             @Override
             public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
                 if (name.equals(addedClassName) && descriptor.equals(addedClassDescriptor)) {
-                    methodPresent[0] = true;                    
+                    methodPresent = true;  
                 }                
                 return super.visitMethod(access, name, descriptor, signature, exceptions);
             }
         }, 0);
-        return methodPresent[0];
+        return methodPresent;
     }
 
     private boolean isAdditionalMethodInvoked(ClassReader classReader) {
-        final boolean[] methodInvoked = {false}; 
+        methodInvoked = false; 
         classReader.accept(new ClassVisitor(Opcodes.ASM9) {
             @Override
             public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
@@ -96,7 +98,7 @@ class AnalyserTest {
                     @Override
                     public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
                         if (name.equals(addedClassName) && descriptor.equals(addedClassDescriptor)) {
-                            methodInvoked[0] = true;
+                            methodInvoked = true;
                         }
                         super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
                     }
@@ -104,7 +106,7 @@ class AnalyserTest {
             }
             
         }, 0);
-        return methodInvoked[0];
+        return methodInvoked;
     }
 }
 
