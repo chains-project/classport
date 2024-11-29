@@ -30,7 +30,7 @@ public class Analyser {
     // and use this from there.
     private static final byte[] magicBytes = new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE };
 
-    private static HashMap<String, ClassportInfo> getSBOM(JarFile jar) {
+    public static HashMap<String, ClassportInfo> getSBOM(JarFile jar) {
         HashMap<String, ClassportInfo> sbom = new HashMap<>();
         HashMap<String, Integer> noAnnotations = new HashMap<>();
         try {

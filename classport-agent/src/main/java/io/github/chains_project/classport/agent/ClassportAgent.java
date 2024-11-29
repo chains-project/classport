@@ -4,17 +4,16 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
-import java.lang.instrument.*;
+import java.lang.instrument.ClassFileTransformer;
+import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import io.github.chains_project.classport.commons.AnnotationReader;
 import io.github.chains_project.classport.commons.ClassportInfo;
 import io.github.chains_project.classport.commons.ClassportProject;
-import io.github.chains_project.classport.commons.AnnotationReader;
 
 /**
  * A classport agent, ready to check the classports of any and all incoming
@@ -25,7 +24,7 @@ public class ClassportAgent {
     private static final ArrayList<String> noAnnotations = new ArrayList<>();
 
     // TODO: Output in a useful format (JSON?)
-    private static void writeSBOM(Map<String, ClassportInfo> sbom) throws IOException {
+    public static void writeSBOM(Map<String, ClassportInfo> sbom) throws IOException {
         File treeOutputFile = new File("classport-deps-tree");
         File listOutputFile = new File("classport-deps-list");
 

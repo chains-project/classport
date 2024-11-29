@@ -1,5 +1,4 @@
 target/
-*.class
 .DS_Store
 
 # jdtls/eclipse stuff
