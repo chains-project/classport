@@ -9,3 +9,7 @@ target/
 
 # vscode settings
 settings.json
+
+# .so
+*.so
+

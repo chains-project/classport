@@ -1,0 +1,171 @@
+#include <jvmti.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>
+
+#define CONSTANT_UTF8 1
+#define CONSTANT_INTEGER 3
+#define CONSTANT_FLOAT 4
+#define CONSTANT_LONG 5
+#define CONSTANT_DOUBLE 6
+#define CONSTANT_CLASS 7
+#define CONSTANT_STRING 8
+#define CONSTANT_FIELDREF 9
+#define CONSTANT_METHODREF 10
+#define CONSTANT_INTERFACEMETHODREF 11
+#define CONSTANT_NAME_AND_TYPE 12
+#define CONSTANT_METHODHANDLE 15
+#define CONSTANT_METHOD_TYPE 16
+#define CONSTANT_INVOKE_DYNAMIC 18
+#define CONSTANT_MODULE 19
+#define CONSTANT_PACKAGE 20
+
+void parse_constant_pool(unsigned char *constant_pool, jint constant_pool_count, char *class_signature) {
+    int found_annotation = 0;
+    char *value = NULL;
+    for (int i = 0; i < constant_pool_count; i++) {
+        unsigned char tag = constant_pool[i];
+
+        switch (tag) {
+            case CONSTANT_UTF8: {
+                uint16_t length;
+                memcpy(&length, &constant_pool[i + 1], sizeof(uint16_t));
+                length = ntohs(length);
+                char *utf8 = (char *)malloc(length + 1);
+                memcpy(utf8, &constant_pool[i + 3], length);
+                utf8[length] = '\0';
+                
+                if (strcmp(utf8, "Lio/github/chains_project/classport/commons/ClassportInfo;") == 0) {
+                    printf("--------------------\n");
+                    printf("Found custom annotation: %s\n", utf8);
+                    printf("Class: %s\n", class_signature);
+                    found_annotation = 1;
+                } else if (strcmp(utf8, "RuntimeVisibleAnnotations") == 0) {
+                    found_annotation = 0;
+                } else if (found_annotation && strcmp(utf8, "isDirectDependency") != 0) {
+                    if (value) {
+                        printf("%s: %s\n", value, utf8);
+                        free(value);
+                        value = NULL;
+                    } else {
+                        value = strdup(utf8);
+                    }
+                }
+                
+                free(utf8);
+                i += 2 + length;
+                break;
+            }
+            case CONSTANT_INTEGER:
+                i += 4;
+                break;
+            case CONSTANT_FLOAT:
+                i += 4;
+                break;
+            case CONSTANT_LONG:
+                i += 8;
+                break;
+            case CONSTANT_DOUBLE:
+                i += 8;
+                break;
+            case CONSTANT_CLASS:
+            case CONSTANT_STRING:
+            case CONSTANT_METHOD_TYPE:
+            case CONSTANT_MODULE:
+            case CONSTANT_PACKAGE:
+                i += 2;
+                break;
+            case CONSTANT_FIELDREF:
+            case CONSTANT_METHODREF:
+            case CONSTANT_INTERFACEMETHODREF:
+            case CONSTANT_NAME_AND_TYPE:
+            case CONSTANT_INVOKE_DYNAMIC:
+                i += 4;
+                break;
+            case CONSTANT_METHODHANDLE:
+                i += 3;
+                break;
+            default:
+                fprintf(stderr, "Unknown constant pool type '%d'\n", tag);
+                break;
+        }
+    }
+}
+
+// Callback for Method Entry
+void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, jmethodID method) {
+    char *method_name = NULL;
+    char *method_signature = NULL;
+    char *class_signature = NULL;
+    jclass declaring_class;
+    jvmtiError err;
+    jint constant_pool_count;
+    jint constant_pool_byte_count;
+    unsigned char *constant_pool;
+
+    // Get the method's declaring class
+    err = (*jvmti_env)->GetMethodDeclaringClass(jvmti_env, method, &declaring_class);
+    if (err == JVMTI_ERROR_NONE) {
+        // Get the class name
+        err = (*jvmti_env)->GetClassSignature(jvmti_env, declaring_class, &class_signature, NULL);
+    } 
+
+    // Get the method name and signature
+    if (err == JVMTI_ERROR_NONE) {
+        err = (*jvmti_env)->GetMethodName(jvmti_env, method, &method_name, &method_signature, NULL);
+    } 
+
+    // Print the executing class and method
+    // if (err == JVMTI_ERROR_NONE) {
+    //     printf("Executing Class: %s, Method: %s%s\n", class_signature, method_name, method_signature);
+    // }
+
+    err = (*jvmti_env)->GetConstantPool(jvmti_env, declaring_class, &constant_pool_count, &constant_pool_byte_count, &constant_pool);
+    if (err != JVMTI_ERROR_NONE) {
+        fprintf(stderr, "Failed to get constant pool: %d\n", err);
+    }
+
+    // Parse the Constant Pool
+    parse_constant_pool(constant_pool, constant_pool_byte_count, class_signature);
+
+
+
+    // Deallocate JVMTI memory
+    if (class_signature) (*jvmti_env)->Deallocate(jvmti_env, (unsigned char *)class_signature);
+    if (method_name) (*jvmti_env)->Deallocate(jvmti_env, (unsigned char *)method_name);
+    if (method_signature) (*jvmti_env)->Deallocate(jvmti_env, (unsigned char *)method_signature);
+    if (constant_pool) (*jvmti_env)->Deallocate(jvmti_env, constant_pool);
+}
+
+JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
+    jvmtiEnv *jvmti;
+    jvmtiCapabilities      capabilities;
+    jvmtiError             error;
+    jvmtiEventCallbacks    callbacks;
+
+    // Get the JVMTI environment
+    jint res = (*jvm)->GetEnv(jvm, (void **)&jvmti, JVMTI_VERSION_1_2);
+    if (res != JNI_OK) {
+        printf("ERROR: Unable to access JVMTI\n");
+        return JNI_ERR;
+    }
+
+    // Set capabilities
+    capabilities.can_generate_all_class_hook_events = 1;
+    capabilities.can_get_bytecodes = 1;
+    capabilities.can_get_constant_pool = 1;
+
+    (*jvmti)->AddCapabilities(jvmti,&capabilities);
+    
+
+    // Register the callback and enable the Method Entry event
+    callbacks.MethodEntry = &onMethodEntry;
+    (*jvmti)->SetEventCallbacks(jvmti, &callbacks, sizeof(callbacks));
+    (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_METHOD_ENTRY, NULL);
+    printf("Agent_OnLoad\n");
+
+    return JNI_OK;
+}
+
+
