@@ -21,7 +21,7 @@
 #define CONSTANT_MODULE 19
 #define CONSTANT_PACKAGE 20
 
-void parse_constant_pool(unsigned char *constant_pool, jint constant_pool_count, char *class_signature) {
+void parse_constant_pool(unsigned char *constant_pool, jint constant_pool_count, char *class_signature, char *method_name) {
     int found_annotation = 0;
     char *value = NULL;
     for (int i = 0; i < constant_pool_count; i++) {
@@ -40,6 +40,7 @@ void parse_constant_pool(unsigned char *constant_pool, jint constant_pool_count,
                     printf("--------------------\n");
                     printf("Found custom annotation: %s\n", utf8);
                     printf("Class: %s\n", class_signature);
+                    printf("Method: %s\n", method_name);
                     found_annotation = 1;
                 } else if (strcmp(utf8, "RuntimeVisibleAnnotations") == 0) {
                     found_annotation = 0;
@@ -127,7 +128,7 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
     }
 
     // Parse the Constant Pool
-    parse_constant_pool(constant_pool, constant_pool_byte_count, class_signature);
+    parse_constant_pool(constant_pool, constant_pool_byte_count, class_signature, method_name);
 
 
 

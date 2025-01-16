@@ -19,7 +19,6 @@ The agent outputs the information extracted from the embedded annotation of the 
 An example of the output is:
 
 ```
-Found custom annotation: Lio/github/chains_project/classport/commons/ClassportInfo;
 Class: Lorg/apache/commons/lang3/StringUtils;
 group: org.apache.commons
 version: 3.17.0
