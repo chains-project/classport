@@ -139,6 +139,7 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
     if (constant_pool) (*jvmti_env)->Deallocate(jvmti_env, constant_pool);
 }
 
+// Used for attaching at start-up time using the -agentpath option
 JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     jvmtiEnv *jvmti;
     jvmtiCapabilities      capabilities;
@@ -167,6 +168,37 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
     printf("Agent_OnLoad\n");
 
     return JNI_OK;
+}
+
+// Used for attaching at run-time using the Attach API written in AgentLoader.java
+JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved) {
+        jvmtiEnv *jvmti;
+        jvmtiCapabilities      capabilities;
+        jvmtiError             error;
+        jvmtiEventCallbacks    callbacks;
+
+        // Get the JVMTI environment
+        jint res = (*jvm)->GetEnv(jvm, (void **)&jvmti, JVMTI_VERSION_1_2);
+        if (res != JNI_OK) {
+            printf("ERROR: Unable to access JVMTI\n");
+            return JNI_ERR;
+        }
+
+        // Set capabilities
+        capabilities.can_generate_all_class_hook_events = 1;
+        capabilities.can_get_bytecodes = 1;
+        capabilities.can_get_constant_pool = 1;
+
+        (*jvmti)->AddCapabilities(jvmti,&capabilities);
+
+
+        // Register the callback and enable the Method Entry event
+        callbacks.MethodEntry = &onMethodEntry;
+        (*jvmti)->SetEventCallbacks(jvmti, &callbacks, sizeof(callbacks));
+        (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_METHOD_ENTRY, NULL);
+        printf("Agent_OnAttach\n");
+
+        return JNI_OK;
 }
 
 
