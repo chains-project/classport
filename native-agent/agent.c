@@ -186,11 +186,64 @@ JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved
             (*jvmti)->AddCapabilities(jvmti, &capabilities);
         }
 
-        // Register the callback and enable the Method Entry event
-        callbacks.MethodEntry = &onMethodEntry;
-        (*jvmti)->SetEventCallbacks(jvmti, &callbacks, sizeof(callbacks));
-        (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_METHOD_ENTRY, NULL);
-        printf("Agent_OnAttach\n");
+        jint maxFrameCount = 10;
+        jvmtiStackInfo *stack_info;
+        jint thread_count;
+        error = (*jvmti)->GetAllStackTraces(jvmti, maxFrameCount, &stack_info, &thread_count);
+        if (error != JVMTI_ERROR_NONE) {
+            printf("ERROR: Unable to get all stack traces\n");
+            return JNI_ERR;
+        }
+        printf("%d threads\n", thread_count);
+        for (int ti = 0; ti < thread_count; ++ti) {
+           jvmtiStackInfo *infop = &stack_info[ti];
+           jthread thread = infop->thread;
+           jint state = infop->state;
+           jvmtiFrameInfo *frames = infop->frame_buffer;
+
+           jvmtiThreadInfo thread_info;
+           error = (*jvmti)->GetThreadInfo(jvmti, thread, &thread_info);
+           if (error != JVMTI_ERROR_NONE) {
+               printf("ERROR: Unable to get thread info\n");
+               return JNI_ERR;
+           }
+           else {
+               printf("Thread: %s\n", thread_info.name);
+           }
+
+           for (int fi = 0; fi < infop->frame_count; fi++) {
+                printf("Method %d\n", frames[fi].method);
+                printf("Location %d\n", frames[fi].location);
+
+                jlocation location = frames[fi].location;
+                if (location != -1) {
+                    char *method_name;
+                    char *method_signature;
+                    jclass declaring_class;
+                    char *class_signature;
+                    error = (*jvmti)->GetMethodName(jvmti, frames[fi].method, &method_name, &method_signature, NULL);
+                    if (error != JVMTI_ERROR_NONE) {
+                        printf("ERROR: Unable to get method name\n");
+                        return JNI_ERR;
+                    }
+                    error = (*jvmti)->GetMethodDeclaringClass(jvmti, frames[fi].method, &declaring_class);
+                    if (error != JVMTI_ERROR_NONE) {
+                        printf("ERROR: Unable to get declaring class\n");
+                        return JNI_ERR;
+                    }
+                    error = (*jvmti)->GetClassSignature(jvmti, declaring_class, &class_signature, NULL);
+                    if (error != JVMTI_ERROR_NONE) {
+                        printf("ERROR: Unable to get class signature\n");
+                        return JNI_ERR;
+                    }
+                    printf("Method: %s%s\n", method_name, method_signature);
+                    printf("Class: %s\n", class_signature);
+                    if (method_name) (*jvmti)->Deallocate(jvmti, (unsigned char *)method_name);
+                    if (method_signature) (*jvmti)->Deallocate(jvmti, (unsigned char *)method_signature);
+                    if (class_signature) (*jvmti)->Deallocate(jvmti, (unsigned char *)class_signature);
+                }
+           }
+        }
 
         return JNI_OK;
 }

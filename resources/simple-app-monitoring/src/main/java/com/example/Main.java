@@ -8,14 +8,14 @@ public class Main {
         customSleepingThread();
         CustomClassGson.CustomClassGsonSleep();
         System.out.println(StringUtils.capitalize("Hello world2!"));
-        for (int i =0; i<100000; ++i) {
+        for (long i =0; i<100000000; ++i) {
             print();
-            Thread.sleep(5000);
+
         }
     }
 
     static void print() {
-        System.out.println("Hello world4!");
+        StringUtils.capitalize("Hello world!");
     }
 
     private static void customSleepingThread() {
