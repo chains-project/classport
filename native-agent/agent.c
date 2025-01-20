@@ -153,13 +153,9 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
         return JNI_ERR;
     }
 
-    capabilities.can_generate_method_entry_events = 1;
-    capabilities.can_get_constant_pool = 1;
-
-    error = (*jvmti)->AddCapabilities(jvmti, &capabilities);
-    if (error != JVMTI_ERROR_NONE) {
-        printf("ERROR: Unable to get capabilities\n");
-        return JNI_ERR;
+    error = (*jvmti)->GetPotentialCapabilities(jvmti, &capabilities);
+    if (error == JVMTI_ERROR_NONE) {
+        (*jvmti)->AddCapabilities(jvmti, &capabilities);
     }
 
     // Register the callback and enable the Method Entry event
@@ -185,13 +181,9 @@ JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved
             return JNI_ERR;
         }
 
-        capabilities.can_generate_method_entry_events = 1;
-        capabilities.can_get_constant_pool = 1;
-
-        error = (*jvmti)->AddCapabilities(jvmti, &capabilities);
-        if (error != JVMTI_ERROR_NONE) {
-            printf("ERROR: Unable to get capabilities\n");
-            return JNI_ERR;
+        error = (*jvmti)->GetPotentialCapabilities(jvmti, &capabilities);
+        if (error == JVMTI_ERROR_NONE) {
+            (*jvmti)->AddCapabilities(jvmti, &capabilities);
         }
 
         // Register the callback and enable the Method Entry event
