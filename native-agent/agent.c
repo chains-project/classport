@@ -142,7 +142,7 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
 // Used for attaching at start-up time using the -agentpath option
 JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     jvmtiEnv *jvmti;
-    jvmtiCapabilities      capabilities;
+    jvmtiCapabilities      capabilities = {0};
     jvmtiError             error;
     jvmtiEventCallbacks    callbacks;
 
@@ -154,12 +154,17 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
     }
 
     // Set capabilities
-    capabilities.can_generate_all_class_hook_events = 1;
-    capabilities.can_get_bytecodes = 1;
     capabilities.can_get_constant_pool = 1;
 
-    (*jvmti)->AddCapabilities(jvmti,&capabilities);
-    
+    error = (*jvmti)->GetPotentialCapabilities(jvmti, &capabilities);
+    if (error == JVMTI_ERROR_NONE) {
+       error = (*jvmti)->AddCapabilities(jvmti, &capabilities);
+    }
+    else {
+        printf("ERROR: Unable to get potential capabilities\n");
+        return JNI_ERR;
+    }
+
 
     // Register the callback and enable the Method Entry event
     callbacks.MethodEntry = &onMethodEntry;
