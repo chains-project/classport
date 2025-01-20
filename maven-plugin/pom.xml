@@ -130,6 +130,8 @@
                     <compilerArgs>
                         <arg>--add-exports</arg>
                         <arg>jdk.jcmd/sun.tools.jstack=ALL-UNNAMED</arg>
+                        <arg>--add-exports</arg>
+                        <arg>jdk.attach/sun.tools.attach=ALL-UNNAMED</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
