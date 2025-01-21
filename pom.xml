@@ -36,6 +36,7 @@
     <module>maven-plugin</module>
     <module>classport-agent</module>
     <module>classport-analyser</module>
+      <module>classport-introspection</module>
   </modules>
 
   <scm>
