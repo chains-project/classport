@@ -4,11 +4,11 @@ import org.apache.commons.lang3.StringUtils;
 
 public class Main {
     public static void main(String[] args)  throws InterruptedException {
-        System.out.println(StringUtils.capitalize("Hello world!"));
+        System.out.println(StringUtils.capitalize("Hello world!!"));
         customSleepingThread();
         CustomClassGson.CustomClassGsonSleep();
         System.out.println(StringUtils.capitalize("Hello world2!"));
-        for (long i =0; i<100000000; ++i) {
+        for (long i =0; i<1000000000; ++i) {
             print();
 
         }
@@ -16,6 +16,7 @@ public class Main {
 
     static void print() {
         StringUtils.capitalize("Hello world!");
+        try { Thread.sleep(10); } catch (InterruptedException e) { }
     }
 
     private static void customSleepingThread() {
