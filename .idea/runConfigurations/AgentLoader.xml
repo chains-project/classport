@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="AgentLoader" type="Application" factoryName="Application" nameIsGenerated="true">
+    <option name="MAIN_CLASS_NAME" value="io.github.chains_project.classport.plugin.AgentLoader" />
+    <module name="classport-maven-plugin" />
+    <option name="VM_PARAMETERS" value="--add-exports jdk.jcmd/sun.tools.jstack=ALL-UNNAMED --add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED --add-exports jdk.jcmd/sun.tools.common=ALL-UNNAMED" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="io.github.chains_project.classport.plugin.*" />
+        <option name="ENABLED" value="true" />
+      </pattern>
+    </extension>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
