@@ -139,6 +139,56 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
     if (constant_pool) (*jvmti_env)->Deallocate(jvmti_env, constant_pool);
 }
 
+//Callback method
+void onVMInit(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread)
+{
+    printf("loading jar...\n");
+    const char* javaNetUrlClassName = "java/net/URL";
+    char* jarPath = (char*) "file://Users/serena/Dottorato/KTH/classport-dev/classport/classport-commons/target/classport-commons-0.1.0-SNAPSHOT.jar";
+    jclass urlClass = (*jni_env)->FindClass(jni_env, javaNetUrlClassName);
+    if(urlClass == NULL){
+        char msg[50];
+        sprintf(msg, "couldn't find class: %s\n", javaNetUrlClassName);
+        (*jni_env)->FatalError(jni_env,(char *) msg);
+    }
+    printf("urlClass created\n");
+
+    jmethodID urlConstructor = (*jni_env)->GetMethodID(jni_env,urlClass, "<init>", "(Ljava/lang/String;)V");
+    jstring jarPathJString = (*jni_env)->NewStringUTF(jni_env,jarPath);
+    jobject url = (*jni_env)->NewObject(jni_env,urlClass, urlConstructor, jarPathJString);
+    (*jni_env)->ReleaseStringUTFChars(jni_env,jarPathJString, NULL);
+    if(url == NULL){
+        (*jni_env)->FatalError(jni_env,"Couldn't create URL object");
+    }
+    printf("jar url created\n");
+
+    jobjectArray urls = (*jni_env)->NewObjectArray(jni_env,1, (*jni_env)->FindClass(jni_env,javaNetUrlClassName), NULL);
+    (*jni_env)->SetObjectArrayElement(jni_env,urls, 0, url);
+
+    jclass classLoaderClass = (*jni_env)->FindClass(jni_env,"java/net/URLClassLoader");
+    jmethodID constructor = (*jni_env)->GetMethodID(jni_env,classLoaderClass, "<init>", "([Ljava/net/URL;)V");
+    jobject classLoader = (*jni_env)->NewObject(jni_env,classLoaderClass, constructor, urls);
+    printf("classloader created \n");
+
+    jclass clazz = (*jni_env)->FindClass(jni_env,"java/lang/Class");
+    jmethodID classForNameMethod = (*jni_env)->GetStaticMethodID(jni_env,clazz, "forName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;");
+    if(classForNameMethod == NULL){
+        (*jni_env)->FatalError(jni_env,"Class.forName(String,boolean,java.lang.ClassLoader)java.lang.Class method not found\n");
+    }
+
+    char *jarInitClass = "io.github.chains_project.classport.commons.ClassportInfo";
+    jstring classToLoad = (*jni_env)->NewStringUTF(jni_env,jarInitClass);
+    //bool t = true;
+    jclass jarClass = (jclass) (*jni_env)->CallStaticObjectMethod(jni_env,clazz, classForNameMethod, classToLoad, 0, classLoader);
+    (*jni_env)->ReleaseStringUTFChars(jni_env,classToLoad, NULL);
+    if(jarClass == NULL){
+        printf("jarClass found %s\n", jarClass);
+        char msg[100];
+        sprintf(msg, "jar init class not found: %s\n", jarInitClass);
+        // (*jni_env)->FatalError(jni_env,(char *) msg);
+    }
+}
+
 // Used for attaching at start-up time using the -agentpath option
 JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     jvmtiEnv *jvmti;
@@ -158,14 +208,20 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
         (*jvmti)->AddCapabilities(jvmti, &capabilities);
     }
 
+    (void)memset(&callbacks, 0, sizeof(callbacks));
     // Register the callback and enable the Method Entry event
     callbacks.MethodEntry = &onMethodEntry;
+    callbacks.VMInit = (void*)&onVMInit;
+
     (*jvmti)->SetEventCallbacks(jvmti, &callbacks, sizeof(callbacks));
     (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_METHOD_ENTRY, NULL);
+    (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_VM_INIT , NULL);
+
     printf("Agent_OnLoad\n");
 
     return JNI_OK;
 }
+
 
 // Used for attaching at run-time using the Attach API written in AgentLoader.java
 JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved) {
