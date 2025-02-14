@@ -116,19 +116,60 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
     if (err == JVMTI_ERROR_NONE) {
         err = (*jvmti_env)->GetMethodName(jvmti_env, method, &method_name, &method_signature, NULL);
     } 
+    // Check if the method name is "customSleepingThread"
+    if (err == JVMTI_ERROR_NONE && strcmp(method_name, "customSleepingThread") == 0) {
+        printf("Executing customSleepingThread method\n");
+        jclass class_class = (*jni_env)->FindClass(jni_env, "java/lang/Class");
+        if (class_class == NULL) {
+            fprintf(stderr, "Error: Unable to find class java/lang/Class in onMethodEntry\n");
+            return;
+        }
+
+        jmethodID getAnnotations_method = (*jni_env)->GetMethodID(jni_env, class_class, "getAnnotations", "()[Ljava/lang/annotation/Annotation;");
+        if (getAnnotations_method == NULL) {
+            fprintf(stderr, "Error: Unable to find method getAnnotations in onMethodEntry\n");
+            return;
+        }
+
+        jobject annotations = (*jni_env)->CallObjectMethod(jni_env, declaring_class, getAnnotations_method);
+        if (annotations == NULL) {
+            fprintf(stderr, "Error: Unable to get annotations in onMethodEntry\n");
+            return;
+        }
+
+        jclass annotationClass = (*jni_env)->FindClass(jni_env, "java/lang/annotation/Annotation");
+        jmethodID toStringMethod = (*jni_env)->GetMethodID(jni_env, annotationClass, "toString", "()Ljava/lang/String;");
+        if (toStringMethod == NULL) {
+            fprintf(stderr, "Error: Unable to find toString method in onMethodEntry\n");
+            return;
+        }
+
+        jsize annotationCount = (*jni_env)->GetArrayLength(jni_env, annotations);
+        for (jsize i = 0; i < annotationCount; i++) {
+            jobject annotation = (*jni_env)->GetObjectArrayElement(jni_env, annotations, i);
+            jstring annotationStr = (jstring)(*jni_env)->CallObjectMethod(jni_env, annotation, toStringMethod);
+            const char *annotationCStr = (*jni_env)->GetStringUTFChars(jni_env, annotationStr, NULL);
+            printf("Annotation: %s\n", annotationCStr);
+            if (annotationStr) (*jni_env)->ReleaseStringUTFChars(jni_env, annotationStr, annotationCStr);
+            if (annotation) (*jni_env)->DeleteLocalRef(jni_env, annotation);
+            if (annotationStr) (*jni_env)->DeleteLocalRef(jni_env, annotationStr);
+        }
+        if (annotations) (*jni_env)->DeleteLocalRef(jni_env, annotations);
+        if (annotationClass) (*jni_env)->DeleteLocalRef(jni_env, annotationClass);
+    }
 
     // Print the executing class and method
     // if (err == JVMTI_ERROR_NONE) {
     //     printf("Executing Class: %s, Method: %s%s\n", class_signature, method_name, method_signature);
     // }
 
-    err = (*jvmti_env)->GetConstantPool(jvmti_env, declaring_class, &constant_pool_count, &constant_pool_byte_count, &constant_pool);
-    if (err != JVMTI_ERROR_NONE) {
-        fprintf(stderr, "Failed to get constant pool: %d\n", err);
-    }
+    // err = (*jvmti_env)->GetConstantPool(jvmti_env, declaring_class, &constant_pool_count, &constant_pool_byte_count, &constant_pool);
+    // if (err != JVMTI_ERROR_NONE) {
+    //     fprintf(stderr, "Failed to get constant pool: %d\n", err);
+    // }
 
     // Parse the Constant Pool
-    parse_constant_pool(constant_pool, constant_pool_byte_count, class_signature, method_name);
+    // parse_constant_pool(constant_pool, constant_pool_byte_count, class_signature, method_name);
 
 
 
@@ -136,7 +177,7 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
     if (class_signature) (*jvmti_env)->Deallocate(jvmti_env, (unsigned char *)class_signature);
     if (method_name) (*jvmti_env)->Deallocate(jvmti_env, (unsigned char *)method_name);
     if (method_signature) (*jvmti_env)->Deallocate(jvmti_env, (unsigned char *)method_signature);
-    if (constant_pool) (*jvmti_env)->Deallocate(jvmti_env, constant_pool);
+    // if (constant_pool) (*jvmti_env)->Deallocate(jvmti_env, constant_pool);
 }
 
 //Callback method
@@ -144,7 +185,7 @@ void onVMInit(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread)
 {
     printf("loading jar...\n");
     const char* javaNetUrlClassName = "java/net/URL";
-    char* jarPath = (char*) "file://Users/serena/Dottorato/KTH/classport-dev/classport/classport-commons/target/classport-commons-0.1.0-SNAPSHOT.jar";
+    char* jarPath = (char*) "file:///Users/serena/Dottorato/KTH/classport-dev/classport/classport-commons/target/classport-commons-0.1.0-SNAPSHOT.jar";
     jclass urlClass = (*jni_env)->FindClass(jni_env, javaNetUrlClassName);
     if(urlClass == NULL){
         char msg[50];
