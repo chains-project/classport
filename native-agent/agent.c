@@ -6,6 +6,15 @@
 
 static char jar_path[1024];
 
+int setEventNotification(jvmtiEnv *jvmti, jvmtiEvent event_type, jvmtiEventMode mode, jthread thread) {
+    jvmtiError error = (*jvmti)->SetEventNotificationMode(jvmti, mode, event_type, thread);
+    if (error != JVMTI_ERROR_NONE) {
+        printf("ERROR: Unable to set event notification mode\n");
+        return 0;
+    }
+    return 1;
+}
+
 // Callback for Method Entry
 void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread, jmethodID method) {
     char *method_name = NULL;
@@ -26,7 +35,9 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
         err = (*jvmti_env)->GetMethodName(jvmti_env, method, &method_name, &method_signature, NULL);
     } 
     // Check if the method name is "customSleepingThread"
-    if (err == JVMTI_ERROR_NONE && strcmp(method_name, "customSleepingThread") == 0) {
+
+    //  && strcmp(method_name, "customSleepingThread") == 0
+    if (err == JVMTI_ERROR_NONE) {
         // printf("Executing customSleepingThread method\n");
         jclass class_class = (*jni_env)->FindClass(jni_env, "java/lang/Class");
         if (class_class == NULL) {
@@ -40,9 +51,17 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
             return;
         }
 
+        if (setEventNotification(jvmti_env, JVMTI_EVENT_METHOD_ENTRY, JVMTI_DISABLE, NULL) == 0) {
+            fprintf(stderr, "Error: Unable to disable METHOD_ENTRY event in onMethodEntry\n");
+            return;
+        }
         jobject annotations = (*jni_env)->CallObjectMethod(jni_env, declaring_class, getAnnotations_method);
         if (annotations == NULL) {
             fprintf(stderr, "Error: Unable to get annotations in onMethodEntry\n");
+            return;
+        }
+        if (setEventNotification(jvmti_env, JVMTI_EVENT_METHOD_ENTRY, JVMTI_ENABLE, NULL) == 0) {
+            fprintf(stderr, "Error: Unable to enable METHOD_ENTRY event in onMethodEntry\n");
             return;
         }
 
@@ -84,6 +103,8 @@ void onVMInit(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread)
     (*jvmti_env)->AddToBootstrapClassLoaderSearch(jvmti_env, jar_path);
 }
 
+
+
 // Used for attaching at start-up time using the -agentpath option
 JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
     jvmtiEnv *jvmti;
@@ -122,17 +143,25 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
     }
 
     // Enable JVMTI events
-    error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_METHOD_ENTRY, NULL);
-    if (error != JVMTI_ERROR_NONE) {
+    if (setEventNotification(jvmti, JVMTI_EVENT_METHOD_ENTRY, JVMTI_ENABLE, NULL) == 0) {
         printf("ERROR: Enabling METHOD_ENTRY event failed: %d\n", error);
         return JNI_ERR;
     }
-
-    error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_VM_INIT, NULL);
-    if (error != JVMTI_ERROR_NONE) {
+    // error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_METHOD_ENTRY, NULL);
+    // if (error != JVMTI_ERROR_NONE) {
+    //     printf("ERROR: Enabling METHOD_ENTRY event failed: %d\n", error);
+    //     return JNI_ERR;
+    // }
+    if (setEventNotification(jvmti, JVMTI_EVENT_VM_INIT, JVMTI_ENABLE, NULL) == 0) {
         printf("ERROR: Enabling VM_INIT event failed: %d\n", error);
         return JNI_ERR;
     }
+
+    // error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_VM_INIT, NULL);
+    // if (error != JVMTI_ERROR_NONE) {
+    //     printf("ERROR: Enabling VM_INIT event failed: %d\n", error);
+    //     return JNI_ERR;
+    // }
 
     // Set the jar path
     if (options != NULL) {
@@ -148,6 +177,7 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
 
     return JNI_OK;
 }
+
 
 
 // Used for attaching at run-time using the Attach API written in AgentLoader.java
