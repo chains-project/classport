@@ -48,10 +48,10 @@ extern "C" fn method_entry_callback(
         let name_str = unsafe { std::ffi::CStr::from_ptr(name).to_string_lossy() };
 
 
-        if name_str == "customSleepingThread"  || true{
+        if name_str == "customSleepingThread" || true {
             // println!("Method entry: {}", name_str);
             // callGetAnnotations(jvmti_env, jni_env, method, class);
-            callGetAnnotationsFix(jvmti_env, jni_env, method, class);
+            callGetAnnotation(jvmti_env, jni_env, &name_str, class);
         }
 
     }
@@ -69,8 +69,7 @@ extern "C" fn method_entry_callback(
     }
 }
 
-fn callGetAnnotationsFix(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: jmethodID, class: jclass) {
-    // Disable METHOD_ENTRY
+fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &str, class: jclass) {
     let result = disable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_DISABLE);
     if result == false {
         eprintln!("Error: Unable to disable METHOD_ENTRY event");
@@ -86,63 +85,61 @@ fn callGetAnnotationsFix(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method:
         return;
     }   
 
-    let getAnnotations_method_name = std::ffi::CString::new("getAnnotations").unwrap();
-    let getAnnotations_signature = std::ffi::CString::new("()[Ljava/lang/annotation/Annotation;").unwrap();
-
-    let methodID = unsafe {
-        (**jni_env).GetMethodID.unwrap()(jni_env, class_class, getAnnotations_method_name.as_ptr(), getAnnotations_signature.as_ptr())     
+    let classport_info_class_name = std::ffi::CString::new("io/github/chains_project/classport/commons/ClassportInfo").unwrap();
+    let classport_info_class = unsafe {
+        (**jni_env).FindClass.unwrap()(jni_env, classport_info_class_name.as_ptr())
     };
-
-    if methodID.is_null() {
-        eprintln!("Error: Unable to find method getAnnotations in method_entry_callback");
+    if classport_info_class.is_null() {
+        eprintln!("Error: Unable to find class classportInfo in method_entry_callback");
         return;
     }
 
-    let annotations = unsafe {
-        (**jni_env).CallObjectMethod.unwrap()(jni_env, class, methodID)
+    let getAnnotation_method_name = std::ffi::CString::new("getAnnotation").unwrap();
+    let getAnnotation_signature = std::ffi::CString::new("(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;").unwrap();
+
+    let methodID = unsafe {
+        (**jni_env).GetMethodID.unwrap()(jni_env, class_class, getAnnotation_method_name.as_ptr(), getAnnotation_signature.as_ptr())     
     };
 
-    if annotations.is_null() {
-        eprintln!("Error: getAnnotations returned null");
-    } else {
-        // println!("getAnnotations called successfully");
+    if methodID.is_null() {
+        eprintln!("Error: Unable to find method getAnnotation in method_entry_callback");
+        return;
+    }
 
-        let length = unsafe { (**jni_env).GetArrayLength.unwrap()(jni_env, annotations as jarray) };
-        for i in 0..length {
-            let annotation = unsafe { (**jni_env).GetObjectArrayElement.unwrap()(jni_env, annotations as jobjectArray, i) };
-            if !annotation.is_null() {
-                let toString_method_name = std::ffi::CString::new("toString").unwrap();
-                let toString_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
-                let toString_methodID = unsafe {
-                    (**jni_env).GetMethodID.unwrap()(jni_env, class_class, toString_method_name.as_ptr(), toString_signature.as_ptr())
+    let annotation = unsafe {
+        (**jni_env).CallObjectMethod.unwrap()(jni_env, class, methodID, classport_info_class)
+    };
+
+    if !annotation.is_null() {
+        let toString_method_name = std::ffi::CString::new("toString").unwrap();
+        let toString_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+        let toString_methodID = unsafe {
+            (**jni_env).GetMethodID.unwrap()(jni_env, class_class, toString_method_name.as_ptr(), toString_signature.as_ptr())
+        };
+
+        if !toString_methodID.is_null() {
+            let annotation_string = unsafe {
+                (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, toString_methodID) as jstring
+            };
+
+            if !annotation_string.is_null() {
+                let mut is_copy: jboolean = 0;
+                let chars = unsafe {
+                    (**jni_env).GetStringUTFChars.unwrap()(jni_env, annotation_string, &mut is_copy)
                 };
 
-                if !toString_methodID.is_null() {
-                    let annotation_string = unsafe {
-                        (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, toString_methodID) as jstring
-                    };
+                if !chars.is_null() {
+                    let annotation_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
+                    println!("Annotation: {}", annotation_str);
 
-                    if !annotation_string.is_null() {
-                        let mut is_copy: jboolean = 0;
-                        let chars = unsafe {
-                            (**jni_env).GetStringUTFChars.unwrap()(jni_env, annotation_string, &mut is_copy)
-                        };
-
-                        if !chars.is_null() {
-                            let annotation_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
-                            println!("Annotation: {}", annotation_str);
-
-                            unsafe {
-                                (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, annotation_string, chars);
-                            }
-                        }
+                    unsafe {
+                        (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, annotation_string, chars);
                     }
                 }
             }
-        }
+        }    
     }
 
-    // Enable METHOD_ENTRY
     let result = enable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE);
     if result == false {
         eprintln!("Error: Unable to enable METHOD_ENTRY event");
