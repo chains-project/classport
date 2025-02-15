@@ -4,24 +4,6 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-// Constant pool tags
-const CONSTANT_UTF8: u8 = 1;
-const CONSTANT_INTEGER: u8 = 3;
-const CONSTANT_FLOAT: u8 = 4;
-const CONSTANT_LONG: u8 = 5;
-const CONSTANT_DOUBLE: u8 = 6;
-const CONSTANT_CLASS: u8 = 7;
-const CONSTANT_STRING: u8 = 8;
-const CONSTANT_FIELDREF: u8 = 9;
-const CONSTANT_METHODREF: u8 = 10;
-const CONSTANT_INTERFACEMETHODREF: u8 = 11;
-const CONSTANT_NAME_AND_TYPE: u8 = 12;
-const CONSTANT_METHODHANDLE: u8 = 15;
-const CONSTANT_METHOD_TYPE: u8 = 16;
-const CONSTANT_INVOKE_DYNAMIC: u8 = 18;
-const CONSTANT_MODULE: u8 = 19;
-const CONSTANT_PACKAGE: u8 = 20;
-
 // "extern "C"" is used to tell the Rust compiler to use the C calling convention for the function, 
 // because the JVM will call the function using the C calling convention." 
 extern "C" fn method_entry_callback(
@@ -30,7 +12,7 @@ extern "C" fn method_entry_callback(
     thread: jthread,
     method: jmethodID,
 ) {
-    if jni_env.is_null() || thread.is_null() || method.is_null() {
+    if jni_env.is_null() || thread.is_null() || method.is_null() || jvmti_env.is_null() {
         eprintln!("Error: One or more pointers are null in method_entry_callback");
         return;
     }
@@ -40,32 +22,37 @@ extern "C" fn method_entry_callback(
     let mut signature: *mut ::std::os::raw::c_char = std::ptr::null_mut();
     let mut generic: *mut ::std::os::raw::c_char = std::ptr::null_mut();
     let mut class: jclass = std::ptr::null_mut();
-    let mut constant_pool_count: jint = 0;
-    let mut constant_pool_byte_count: jint = 0;
-    let mut constant_pool: *mut u8 = std::ptr::null_mut();
 
     // deference the pointer to get the value and call the GetMethodName function.
     // &mut name is a mutable reference to the pointer name. It is a reference because we are going to modify the value of the pointer.
-    if !jvmti_env.is_null() {
-        unsafe {
-            (**jvmti_env).GetMethodName.unwrap()(jvmti_env, method, &mut name, &mut signature, &mut generic);
-        }
-    } 
-    else {
-        eprintln!("Error: jvmtiEnv pointer is null in method_entry_callback");
+    let result = unsafe {
+        (**jvmti_env).GetMethodName.unwrap()(jvmti_env, method, &mut name, &mut signature, &mut generic)
+    };
+    if result != jvmtiError_JVMTI_ERROR_NONE as u32 {
+        eprintln!("Error: Unable to get method name in method_entry_callback");
         return;
     }
+
+    // Get the class of the method
+    let result = unsafe {
+        (**jvmti_env).GetMethodDeclaringClass.unwrap()(jvmti_env, method, &mut class)
+    };
     
+    if result != jvmtiError_JVMTI_ERROR_NONE as u32 {
+        eprintln!("Error: Unable to get declaring class in method_entry_callback");
+        return;
+    }
     
     // "std::ffi::CStr::from_ptr(name).to_string_lossy()" is used to convert the C string to a Rust string.
     if !name.is_null() {
         let name_str = unsafe { std::ffi::CStr::from_ptr(name).to_string_lossy() };
-        if name_str == "capitalize" {
+
+
+        if name_str == "customSleepingThread"  {
             println!("Method entry: {}", name_str);
+            callGetAnnotations(jvmti_env, jni_env, method, class);
         }
-        unsafe {
-            (**jvmti_env).Deallocate.unwrap()(jvmti_env, name as *mut _);
-        }
+
     }
 
     if !signature.is_null() {
@@ -75,77 +62,102 @@ extern "C" fn method_entry_callback(
     if !generic.is_null() {
         unsafe { (**jvmti_env).Deallocate.unwrap()(jvmti_env, generic as *mut _); }
     }
-    
-    if !jvmti_env.is_null() {
-        let result = unsafe {
-            (**jvmti_env).GetMethodDeclaringClass.unwrap()(jvmti_env, method, &mut class)
-        };
-        if result != jvmtiError_JVMTI_ERROR_NONE as u32 {
-            eprintln!("Error: Unable to get declaring class in method_entry_callback");
-            return;
-        }
-    
-        let result = unsafe {
-            (**jvmti_env).GetConstantPool.unwrap()(jvmti_env, class, &mut constant_pool_count, &mut constant_pool_byte_count, &mut constant_pool)
-        };
 
-        if result != jvmtiError_JVMTI_ERROR_NONE as u32 {
-            eprintln!("Error: Unable to get constant pool in method_entry_callback, error code: {}", result);
-            return;
-        }
-    
-        parse_constant_pool(constant_pool, constant_pool_byte_count);
-    
-        // Deallocate the constant pool memory
-        if !constant_pool.is_null() {
-            unsafe {
-                (**jvmti_env).Deallocate.unwrap()(jvmti_env, constant_pool);
-            }
-        }
+    if !class.is_null() {
+        unsafe { (**jni_env).DeleteLocalRef.unwrap()(jni_env, class); }
     }
-    
 }
 
-fn parse_constant_pool(constant_pool: *mut u8, constant_pool_byte_count: jint) {
-    if constant_pool.is_null() {
-        eprintln!("Error: Constant pool pointer is null in parse_constant_pool");
+fn callGetAnnotations(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: jmethodID, mut class: jclass) {
+
+    let class_class_name = std::ffi::CString::new("java/lang/Class").unwrap();
+    let class_class = unsafe { 
+        (**jni_env).FindClass.unwrap()(jni_env, class_class_name.as_ptr()) 
+    };
+    if class_class.is_null() {
+        eprintln!("Error: Unable to find class java/lang/Class in method_entry_callback");
+        return;
+    }   
+
+    let getAnnotations_method_name = std::ffi::CString::new("getAnnotations").unwrap();
+    let getAnnotations_signature = std::ffi::CString::new("()[Ljava/lang/annotation/Annotation;").unwrap();
+
+    let methodID = unsafe {
+        (**jni_env).GetMethodID.unwrap()(jni_env, class_class, getAnnotations_method_name.as_ptr(),getAnnotations_signature.as_ptr())     
+    };
+
+    if methodID.is_null() {
+        eprintln!("Error: Unable to find method getAnnotations in method_entry_callback");
         return;
     }
 
-    let mut offset: isize = 0;
-    while offset < constant_pool_byte_count as isize {
-        let tag = unsafe { *constant_pool.offset(offset) };
-        offset += 1;
+    if disable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_DISABLE) == false {
+        return;
+    }
 
-        match tag {
-            CONSTANT_CLASS | CONSTANT_STRING | CONSTANT_METHOD_TYPE | CONSTANT_MODULE | CONSTANT_PACKAGE => {
-                offset += 2; // Skip 2 bytes
-            }
-            CONSTANT_INTEGER | CONSTANT_FLOAT | CONSTANT_FIELDREF | CONSTANT_METHODREF | CONSTANT_INTERFACEMETHODREF | CONSTANT_NAME_AND_TYPE | CONSTANT_INVOKE_DYNAMIC => {
-                offset += 4; // Skip 4 bytes
-            }
-            CONSTANT_LONG | CONSTANT_DOUBLE => {
-                offset += 8; // Skip 8 bytes
-            }
-            CONSTANT_UTF8 => {
-                if offset + 2 >= constant_pool_byte_count as isize {
-                    eprintln!("Error: Offset {} out of bounds (constant pool byte count: {})", offset + 2, constant_pool_byte_count);
-                    std::process::exit(1);
-                }
-                let length = unsafe {
-                    (*constant_pool.offset(offset) as u16) << 8 | (*constant_pool.offset(offset + 1) as u16)
-                };
-                offset += 2 + length as isize; // Skip length bytes + 2 bytes
-            }
-            CONSTANT_METHODHANDLE => {
-                offset += 3; // Skip 3 bytes
-            }
-            _ => {
-                eprintln!("Error: Unknown tag {} in constant pool at entry", tag);
-                std::process::exit(1);
-            }
+    let annotations = unsafe {
+        (**jni_env).CallObjectMethod.unwrap()(jni_env, class, methodID)
+    };
+    if enable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE) == false {
+        return;
+    }
+
+    // Check if an exception occurred while calling getAnnotations
+    if unsafe { (**jni_env).ExceptionCheck.unwrap()(jni_env) } == 1 {
+        unsafe { (**jni_env).ExceptionDescribe.unwrap()(jni_env) };
+        unsafe { (**jni_env).ExceptionClear.unwrap()(jni_env) };
+        eprintln!("Error: Exception occurred while calling getAnnotations in method_entry_callback");
+        std::process::exit(1);
+    }
+
+    if annotations.is_null() {
+        eprintln!("Error: Unable to get annotations in method_entry_callback");
+        return;
+    } else {
+        // let obj_class_name = std::ffi::CString::new("[Ljava/lang/Object;").unwrap();
+        // let obj_class = unsafe {
+        //     (**jni_env).FindClass.unwrap()(jni_env,obj_class_name.as_ptr())
+        // };
+        // if obj_class.is_null() {
+        //     eprintln!("Error: Unable to find class [Ljava/lang/Object in method_entry_callback");
+        //     return;
+        // }
+        // let is_array = unsafe {
+        //     (**jni_env).IsInstanceOf.unwrap()(jni_env, annotations, obj_class)
+        // };
+        
+        // if is_array == 0 {
+        //     eprintln!("Errore: Il valore restituito non è un array.");
+        //     return;
+        // } else {
+        //     println!("It is an array");
+        // }
+
+        let annotation_array_length = unsafe {
+            (**jni_env).GetArrayLength.unwrap()(jni_env, annotations as jarray)
+        };
+
+        println!("Annotation array length: {}", annotation_array_length);
+
+        for i in 0..annotation_array_length {
+
+            let annotation = unsafe {
+                (**jni_env).GetObjectArrayElement.unwrap()(jni_env, annotations as jarray, i)
+            };
+
+            if annotation.is_null() {
+                eprintln!("Error: Unable to get annotation in method_entry_callback");
+                return;
+            } else {
+                println!("Annotation: {:?}", annotation);   
+            }        
         }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn vminit(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, thread: jthread) {
+    println!("VM init event, live phase.");  
 }
 
 // no_mangle is used to tell the Rust compiler to not mangle the name of the function, because the JVM will call the function by name.
@@ -160,31 +172,81 @@ pub extern "C" fn Agent_OnLoad(vm: *mut JavaVM, options: *mut ::std::os::raw::c_
     let mut capabilities: jvmtiCapabilities = unsafe { std::mem::zeroed() };
     let mut callbacks: jvmtiEventCallbacks = unsafe { std::mem::zeroed() };
 
+    // Get the JVMTI environment pointer
     let result = unsafe { (**vm).GetEnv.unwrap()(vm, &mut jvmti as *mut _ as *mut _, JVMTI_VERSION_1_0 as jint) };
     if result != jvmtiError_JVMTI_ERROR_NONE as jint {
         return result;
     }
 
-    unsafe {
-        if jvmti.is_null() {
-            eprintln!("Error: jvmtiEnv pointer is null after GetEnv in Agent_OnLoad");
-            return jvmtiError_JVMTI_ERROR_NULL_POINTER as jint;
-        }
-        else {
-            // result = (**jvmti).GetPotentialCapabilities.unwrap()(jvmti, &capabilities);
-            capabilities.set_can_generate_method_entry_events(1);
-            capabilities.set_can_get_constant_pool(1); 
-            (**jvmti).AddCapabilities.unwrap()(jvmti, &capabilities);
-
-            callbacks.MethodEntry = Some(method_entry_callback);
-            (**jvmti).SetEventCallbacks.unwrap()(jvmti, &callbacks, std::mem::size_of::<jvmtiEventCallbacks>() as jint);
-
-            (**jvmti).SetEventNotificationMode.unwrap()(jvmti, jvmtiEventMode_JVMTI_ENABLE as jvmtiEventMode, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY as u32, std::ptr::null_mut());
-        }
+    if jvmti.is_null() {
+        eprintln!("Error: jvmtiEnv pointer is null after GetEnv in Agent_OnLoad");
+        return jvmtiError_JVMTI_ERROR_NULL_POINTER as jint;
     }
+    // result = (**jvmti).GetPotentialCapabilities.unwrap()(jvmti, &capabilities);
+    capabilities.set_can_generate_method_entry_events(1);
+    capabilities.set_can_get_constant_pool(1); 
+
+    unsafe { (**jvmti).AddCapabilities.unwrap()(jvmti, &capabilities); }
+    if result != (jvmtiError_JVMTI_ERROR_NONE as jint).try_into().unwrap() {
+        eprintln!("Error: Unable to add capabilities in Agent_OnLoad");
+        return result.try_into().unwrap();
+    }
+
+    callbacks.MethodEntry = Some(method_entry_callback);
+    callbacks.VMInit = Some(vminit);
+    let result = unsafe { (**jvmti).SetEventCallbacks.unwrap()(jvmti, &callbacks, std::mem::size_of::<jvmtiEventCallbacks>() as jint) };
+    if result != (jvmtiError_JVMTI_ERROR_NONE as jint).try_into().unwrap() {
+        eprintln!("Error: Unable to set event callbacks in Agent_OnLoad");
+        return result.try_into().unwrap();
+    }
+
+    // let result = unsafe { (**jvmti).SetEventNotificationMode.unwrap()(jvmti, jvmtiEventMode_JVMTI_ENABLE as jvmtiEventMode, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY as u32, std::ptr::null_mut()) };
+    // if result != jvmtiError_JVMTI_ERROR_NONE {
+    //     eprintln!("ERROR: Enabling METHOD_ENTRY event failed: {}", result);
+    //     return JNI_ERR;
+    // }
+    if enable_event(jvmti, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE) == false {
+        return JNI_ERR;
+    }
+    // let result = unsafe { (**jvmti).SetEventNotificationMode.unwrap()(jvmti, jvmtiEventMode_JVMTI_ENABLE as jvmtiEventMode, jvmtiEvent_JVMTI_EVENT_VM_INIT as u32, std::ptr::null_mut()) };
+    // if result != jvmtiError_JVMTI_ERROR_NONE {
+    //     eprintln!("ERROR: Enabling VM_INIT event failed: {}", result);
+    //     return JNI_ERR;
+    if enable_event(jvmti, jvmtiEvent_JVMTI_EVENT_VM_INIT, jvmtiEventMode_JVMTI_ENABLE) == false {
+        return JNI_ERR;
+    }
+
+    let jar_path = std::ffi::CString::new("/Users/serena/Dottorato/KTH/classport-dev/classport/classport-commons/target/classport-commons-0.1.0-SNAPSHOT.jar").unwrap();
+    let error = unsafe {(**jvmti).AddToBootstrapClassLoaderSearch.unwrap()(jvmti, jar_path.as_ptr())};
+    if error != (jvmtiError_JVMTI_ERROR_NONE as jint).try_into().unwrap(){
+        eprintln!("Error: Unable to add jar to bootstrap class loader search: {}", error);
+    } else {
+        println!("Jar added to bootstrap class loader search");
+    }
+
     println!("Agent loaded with options: {:?}", options);
     
     0 // JNI_OK
+}
+
+fn enable_event(jvmti: *mut jvmtiEnv, event_type: jvmtiEvent, mode: jvmtiEventMode) -> bool {
+    let result = unsafe { (**jvmti).SetEventNotificationMode.unwrap()(jvmti, mode, event_type as u32, std::ptr::null_mut()) };
+    if result != jvmtiError_JVMTI_ERROR_NONE {
+        eprintln!("Error: Unable to enable event: {}", result);
+        return false;
+    } else {
+        return true;
+    }
+}
+
+fn disable_event(jvmti: *mut jvmtiEnv, event_type: jvmtiEvent, mode: jvmtiEventMode) -> bool {
+    let result = unsafe { (**jvmti).SetEventNotificationMode.unwrap()(jvmti, mode, event_type as u32, std::ptr::null_mut()) };
+    if result != jvmtiError_JVMTI_ERROR_NONE {
+        eprintln!("Error: Unable to disable event: {}", result);
+        return false;
+    } else {
+        return true;
+    }
 }
 
 #[no_mangle]
