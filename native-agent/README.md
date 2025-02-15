@@ -11,7 +11,7 @@ make
 
 - Execute it against a target Java application:
 ```console
-java -agentpath:agent.so -jar <path-to-jar-target-application>
+java -agentpath:<path-to-agent>=<full-path-to-classport-commons-0.1.0-SNAPSHOT.jar> -jar <path-to-target-app>
 ```
 
 The agent outputs the information extracted from the embedded annotation of the **executing class**.
