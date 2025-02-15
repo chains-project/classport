@@ -2,13 +2,14 @@ package com.example;
 
 import org.apache.commons.lang3.StringUtils;
 
+@Deprecated
 public class Main {
     public static void main(String[] args)  throws InterruptedException {
         System.out.println(StringUtils.capitalize("Hello world!!"));
         customSleepingThread();
         CustomClassGson.CustomClassGsonSleep();
         System.out.println(StringUtils.capitalize("Hello world2!"));
-        for (long i =0; i<1000000000; ++i) {
+        for (long i =0; i<2; ++i) {
             print();
 
         }
