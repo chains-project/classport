@@ -8,6 +8,12 @@ Here is an agent in Rust.
 
 Requirements: see [bindgen guide](https://rust-lang.github.io/rust-bindgen/requirements.html).
 
+- set the required environment variables
+
+`export JVM_LIB_PATH=<path-to-your-jdk-instalaltion>/libexec/openjdk.jdk/Contents/Home/lib/server`
+`export JVM_INCLUDE_PATH=<path-to-jvmti.h> `
+`export JNI_INCLUDE_PATH=<path-to-jni.h> `
+
 - compile the project:
 
 `cargo build --release`

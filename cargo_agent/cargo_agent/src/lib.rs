@@ -294,7 +294,7 @@ pub extern "C" fn Agent_OnLoad(vm: *mut JavaVM, options: *mut ::std::os::raw::c_
         return JNI_ERR;
     }
 
-    let jar_path = std::ffi::CString::new("/Users/serena/Dottorato/KTH/classport-dev/classport/classport-commons/target/classport-commons-0.1.0-SNAPSHOT.jar").unwrap();
+    let jar_path = std::ffi::CString::new("../../classport-commons/target/classport-commons-0.1.0-SNAPSHOT.jar").unwrap();
     let error = unsafe {(**jvmti).AddToBootstrapClassLoaderSearch.unwrap()(jvmti, jar_path.as_ptr())};
     if error != (jvmtiError_JVMTI_ERROR_NONE as jint).try_into().unwrap(){
         eprintln!("Error: Unable to add jar to bootstrap class loader search: {}", error);
