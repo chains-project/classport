@@ -46,14 +46,7 @@ extern "C" fn method_entry_callback(
     // "std::ffi::CStr::from_ptr(name).to_string_lossy()" is used to convert the C string to a Rust string.
     if !name.is_null() {
         let name_str = unsafe { std::ffi::CStr::from_ptr(name).to_string_lossy() };
-
-
-        if name_str == "customSleepingThread" || true {
-            // println!("Method entry: {}", name_str);
-            // callGetAnnotations(jvmti_env, jni_env, method, class);
-            callGetAnnotation(jvmti_env, jni_env, &name_str, class);
-        }
-
+        callGetAnnotation(jvmti_env, jni_env, &name_str, class);
     }
 
     if !signature.is_null() {
@@ -70,6 +63,7 @@ extern "C" fn method_entry_callback(
 }
 
 fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &str, class: jclass) {
+    // Disable the METHOD_ENTRY event to avoid infinite recursion because we invoke callObjectMethod in the callback which triggers method entry event.
     let result = disable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_DISABLE);
     if result == false {
         eprintln!("Error: Unable to disable METHOD_ENTRY event");
@@ -140,6 +134,7 @@ fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &st
         }    
     }
 
+    // Enable the METHOD_ENTRY event again
     let result = enable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE);
     if result == false {
         eprintln!("Error: Unable to enable METHOD_ENTRY event");
@@ -191,18 +186,10 @@ pub extern "C" fn Agent_OnLoad(vm: *mut JavaVM, options: *mut ::std::os::raw::c_
         return result.try_into().unwrap();
     }
 
-    // let result = unsafe { (**jvmti).SetEventNotificationMode.unwrap()(jvmti, jvmtiEventMode_JVMTI_ENABLE as jvmtiEventMode, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY as u32, std::ptr::null_mut()) };
-    // if result != jvmtiError_JVMTI_ERROR_NONE {
-    //     eprintln!("ERROR: Enabling METHOD_ENTRY event failed: {}", result);
-    //     return JNI_ERR;
-    // }
     if enable_event(jvmti, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE) == false {
         return JNI_ERR;
     }
-    // let result = unsafe { (**jvmti).SetEventNotificationMode.unwrap()(jvmti, jvmtiEventMode_JVMTI_ENABLE as jvmtiEventMode, jvmtiEvent_JVMTI_EVENT_VM_INIT as u32, std::ptr::null_mut()) };
-    // if result != jvmtiError_JVMTI_ERROR_NONE {
-    //     eprintln!("ERROR: Enabling VM_INIT event failed: {}", result);
-    //     return JNI_ERR;
+
     if enable_event(jvmti, jvmtiEvent_JVMTI_EVENT_VM_INIT, jvmtiEventMode_JVMTI_ENABLE) == false {
         return JNI_ERR;
     }
