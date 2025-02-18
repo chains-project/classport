@@ -87,6 +87,7 @@ fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &st
         eprintln!("Error: Unable to find class classportInfo in method_entry_callback");
         return;
     }
+    
 
     let getAnnotation_method_name = std::ffi::CString::new("getAnnotation").unwrap();
     let getAnnotation_signature = std::ffi::CString::new("(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;").unwrap();
@@ -105,34 +106,66 @@ fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &st
     };
 
     if !annotation.is_null() {
-        let toString_method_name = std::ffi::CString::new("toString").unwrap();
-        let toString_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
-        let toString_methodID = unsafe {
-            (**jni_env).GetMethodID.unwrap()(jni_env, class_class, toString_method_name.as_ptr(), toString_signature.as_ptr())
-        };
+        let source_project_id_name = std::ffi::CString::new("sourceProjectId").unwrap();
+        let source_project_id_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
 
-        if !toString_methodID.is_null() {
-            let annotation_string = unsafe {
-                (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, toString_methodID) as jstring
-            };
+        let is_direct_dep_name = std::ffi::CString::new("isDirectDependency").unwrap();
+        let is_direct_dep_signature = std::ffi::CString::new("()Z").unwrap();
 
-            if !annotation_string.is_null() {
-                let mut is_copy: jboolean = 0;
-                let chars = unsafe {
-                    (**jni_env).GetStringUTFChars.unwrap()(jni_env, annotation_string, &mut is_copy)
-                };
+        let id_name = std::ffi::CString::new("id").unwrap();
+        let id_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
 
-                if !chars.is_null() {
-                    let annotation_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
-                    println!("Annotation: {}", annotation_str);
+        let artefact_name = std::ffi::CString::new("artefact").unwrap();
+        let artefact_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
 
-                    unsafe {
-                        (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, annotation_string, chars);
-                    }
-                }
-            }
-        }    
+        let group_name = std::ffi::CString::new("group").unwrap();
+        let group_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+
+        let version_name = std::ffi::CString::new("version").unwrap();
+        let version_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+
+        let child_ids_name = std::ffi::CString::new("childIds").unwrap();
+        let child_ids_signature = std::ffi::CString::new("()[Ljava/lang/String;").unwrap();
+   
+        get_annotation_values(jni_env, classport_info_class, annotation, class_class, source_project_id_name, source_project_id_signature, "sourceProjectId");
+        get_annotation_values(jni_env, classport_info_class, annotation, class_class, is_direct_dep_name, is_direct_dep_signature, "isDirectDependency");
+        get_annotation_values(jni_env, classport_info_class, annotation, class_class, id_name, id_signature, "id");
+        get_annotation_values(jni_env, classport_info_class, annotation, class_class, artefact_name, artefact_signature, "artefact");
+        get_annotation_values(jni_env, classport_info_class, annotation, class_class, group_name, group_signature, "group");
+        get_annotation_values(jni_env, classport_info_class, annotation, class_class, version_name, version_signature, "version");
+        get_annotation_values(jni_env, classport_info_class, annotation, class_class, child_ids_name, child_ids_signature, "childIds");
     }
+
+    // if !annotation.is_null() {
+    //     let toString_method_name = std::ffi::CString::new("toString").unwrap();
+    //     let toString_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+    //     let toString_methodID = unsafe {
+    //         (**jni_env).GetMethodID.unwrap()(jni_env, class_class, toString_method_name.as_ptr(), toString_signature.as_ptr())
+    //     };
+
+
+    //     if !toString_methodID.is_null() {
+    //         let annotation_string = unsafe {
+    //             (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, toString_methodID) as jstring
+    //         };
+
+    //         if !annotation_string.is_null() {
+    //             let mut is_copy: jboolean = 0;
+    //             let chars = unsafe {
+    //                 (**jni_env).GetStringUTFChars.unwrap()(jni_env, annotation_string, &mut is_copy)
+    //             };
+
+    //             if !chars.is_null() {
+    //                 let annotation_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
+    //                 println!("Annotation: {}", annotation_str);
+
+    //                 unsafe {
+    //                     (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, annotation_string, chars);
+    //                 }
+    //             }
+    //         }
+    //     }    
+    // }
 
     // Enable the METHOD_ENTRY event again
     let result = enable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE);
@@ -140,6 +173,103 @@ fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &st
         eprintln!("Error: Unable to enable METHOD_ENTRY event");
     }
 }
+
+pub fn get_annotation_values(jni_env: *mut JNIEnv, classport_info_class: jclass, annotation: jobject, class_class: jclass, name: std::ffi::CString, signature: std::ffi::CString, value: &str) {
+     
+    let get_annotation_value = unsafe { (**jni_env).GetMethodID.unwrap()(jni_env, classport_info_class, name.as_ptr(), signature.as_ptr()) };
+    if get_annotation_value.is_null() {
+        eprintln!("Error: Unable to get method {}() in get_annotation_values", value);
+        return;
+    }
+
+    if value == "isDirectDependency" {
+        let annotation_value = unsafe {
+            (**jni_env).CallBooleanMethod.unwrap()(jni_env, annotation, get_annotation_value)
+        };
+        println!("{}: {}", value, annotation_value);
+        return;
+    }
+
+    if value == "childIds" {
+        let annotation_value = unsafe {
+            (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, get_annotation_value) as jobjectArray
+        };
+        if annotation_value.is_null() {
+            eprintln!("Error: Unable to get annotation value in get_annotation_values");
+            return;
+        }
+
+        let length = unsafe {
+            (**jni_env).GetArrayLength.unwrap()(jni_env, annotation_value)
+        };
+
+        for i in 0..length {
+            let child_id = unsafe {
+                (**jni_env).GetObjectArrayElement.unwrap()(jni_env, annotation_value, i)
+            };
+            if !child_id.is_null() {
+                let mut is_copy: jboolean = 0;
+                let chars = unsafe {
+                    (**jni_env).GetStringUTFChars.unwrap()(jni_env, child_id as jstring, &mut is_copy)
+                };
+
+                if !chars.is_null() {
+                    let child_id_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
+                    println!("{}: {}", value, child_id_str);
+
+                    unsafe {
+                        (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, child_id as jstring, chars);
+                    }
+                }
+            }
+        }
+        return;
+    }
+    
+    let annotation_value = unsafe {
+        (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, get_annotation_value)
+    };
+    if annotation_value.is_null() {
+        eprintln!("Error: Unable to get annotation value in get_annotation_values");
+        return;
+    }
+
+
+
+
+    let toString_method_name = std::ffi::CString::new("toString").unwrap();
+    let toString_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+    let toString_methodID = unsafe {
+        (**jni_env).GetMethodID.unwrap()(jni_env, class_class, toString_method_name.as_ptr(), toString_signature.as_ptr())
+    };
+
+
+    if !toString_methodID.is_null() {
+        let annotation_value_string = unsafe {
+            (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation_value, toString_methodID) as jstring
+        };
+        if !annotation_value_string.is_null() {
+            let mut is_copy: jboolean = 0;
+            let chars = unsafe {
+                (**jni_env).GetStringUTFChars.unwrap()(jni_env, annotation_value_string, &mut is_copy)
+            };
+
+            if !chars.is_null() && value != "childIds" {
+                let annotation_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
+                println!("{}: {}", value, annotation_str);
+
+                unsafe {
+                    (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, annotation_value_string, chars);
+                }
+            }
+            
+        }
+      
+    }
+    
+}
+
+
 
 #[no_mangle]
 pub extern "C" fn vminit(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, thread: jthread) {
