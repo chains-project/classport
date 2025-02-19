@@ -2,6 +2,11 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+use std::fs::OpenOptions;
+use std::io::{Write, BufWriter};
+use std::fs;
+use std::path::Path;
+
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 // "extern "C"" is used to tell the Rust compiler to use the C calling convention for the function, 
@@ -42,11 +47,23 @@ extern "C" fn method_entry_callback(
         eprintln!("Error: Unable to get declaring class in method_entry_callback");
         return;
     }
+
+    // get the class name of the method
+    let mut class_name: *mut ::std::os::raw::c_char = std::ptr::null_mut();
+    let result = unsafe {
+        (**jvmti_env).GetClassSignature.unwrap()(jvmti_env, class, &mut class_name, std::ptr::null_mut())
+    };
+    if result != jvmtiError_JVMTI_ERROR_NONE as u32 {
+        eprintln!("Error: Unable to get class name in method_entry_callback");
+        return;
+    }
+
     
     // "std::ffi::CStr::from_ptr(name).to_string_lossy()" is used to convert the C string to a Rust string.
-    if !name.is_null() {
+    if !name.is_null() && !class_name.is_null() {
         let name_str = unsafe { std::ffi::CStr::from_ptr(name).to_string_lossy() };
-        callGetAnnotation(jvmti_env, jni_env, &name_str, class);
+        let class_name_str = unsafe { std::ffi::CStr::from_ptr(class_name).to_string_lossy() };
+        callGetAnnotation(jvmti_env, jni_env, &name_str, &class_name_str, class);
     }
 
     if !signature.is_null() {
@@ -62,7 +79,7 @@ extern "C" fn method_entry_callback(
     }
 }
 
-fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &str, class: jclass) {
+fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &str, class_name: &str, class: jclass) {
     // Disable the METHOD_ENTRY event to avoid infinite recursion because we invoke callObjectMethod in the callback which triggers method entry event.
     let result = disable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_DISABLE);
     if result == false {
@@ -126,47 +143,27 @@ fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &st
 
         let child_ids_name = std::ffi::CString::new("childIds").unwrap();
         let child_ids_signature = std::ffi::CString::new("()[Ljava/lang/String;").unwrap();
-   
-        get_annotation_values(jni_env, classport_info_class, annotation, class_class, source_project_id_name, source_project_id_signature, "sourceProjectId");
-        get_annotation_values(jni_env, classport_info_class, annotation, class_class, is_direct_dep_name, is_direct_dep_signature, "isDirectDependency");
-        get_annotation_values(jni_env, classport_info_class, annotation, class_class, id_name, id_signature, "id");
-        get_annotation_values(jni_env, classport_info_class, annotation, class_class, artefact_name, artefact_signature, "artefact");
-        get_annotation_values(jni_env, classport_info_class, annotation, class_class, group_name, group_signature, "group");
-        get_annotation_values(jni_env, classport_info_class, annotation, class_class, version_name, version_signature, "version");
-        get_annotation_values(jni_env, classport_info_class, annotation, class_class, child_ids_name, child_ids_signature, "childIds");
+
+        let mut annotation_data: Vec<Vec<String>> = Vec::new();
+
+        let mut row = Vec::new();
+        row.push(method.to_string());
+        row.push(class_name.to_string());
+        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, source_project_id_name, source_project_id_signature, "sourceProjectId").unwrap_or("".to_string()));
+        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, is_direct_dep_name, is_direct_dep_signature, "isDirectDependency").unwrap_or("false".to_string()));
+        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, id_name, id_signature, "id").unwrap_or("".to_string()));
+        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, artefact_name, artefact_signature, "artefact").unwrap_or("".to_string()));
+        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, group_name, group_signature, "group").unwrap_or("".to_string()));
+        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, version_name, version_signature, "version").unwrap_or("".to_string()));
+        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, child_ids_name, child_ids_signature, "childIds").unwrap_or("".to_string()));
+
+        annotation_data.push(row);
+
+        let filename = "annotations.csv";
+        save_to_csv(filename, annotation_data).expect("Failed to write CSV file");
+
     }
-
-    // if !annotation.is_null() {
-    //     let toString_method_name = std::ffi::CString::new("toString").unwrap();
-    //     let toString_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
-    //     let toString_methodID = unsafe {
-    //         (**jni_env).GetMethodID.unwrap()(jni_env, class_class, toString_method_name.as_ptr(), toString_signature.as_ptr())
-    //     };
-
-
-    //     if !toString_methodID.is_null() {
-    //         let annotation_string = unsafe {
-    //             (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, toString_methodID) as jstring
-    //         };
-
-    //         if !annotation_string.is_null() {
-    //             let mut is_copy: jboolean = 0;
-    //             let chars = unsafe {
-    //                 (**jni_env).GetStringUTFChars.unwrap()(jni_env, annotation_string, &mut is_copy)
-    //             };
-
-    //             if !chars.is_null() {
-    //                 let annotation_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
-    //                 println!("Annotation: {}", annotation_str);
-
-    //                 unsafe {
-    //                     (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, annotation_string, chars);
-    //                 }
-    //             }
-    //         }
-    //     }    
-    // }
-
+    
     // Enable the METHOD_ENTRY event again
     let result = enable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE);
     if result == false {
@@ -174,20 +171,53 @@ fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &st
     }
 }
 
-pub fn get_annotation_values(jni_env: *mut JNIEnv, classport_info_class: jclass, annotation: jobject, class_class: jclass, name: std::ffi::CString, signature: std::ffi::CString, value: &str) {
-     
-    let get_annotation_value = unsafe { (**jni_env).GetMethodID.unwrap()(jni_env, classport_info_class, name.as_ptr(), signature.as_ptr()) };
+fn save_to_csv(filename: &str, data: Vec<Vec<String>>) -> std::io::Result<()> {
+    let file = OpenOptions::new()
+        .create(true)  // Create if missing
+        .append(true)  // Append instead of overwriting
+        .open(filename)?; // Open file
+
+    let is_empty = file.metadata()?.len() == 0;  // Check before moving `file`
+
+    let mut writer = BufWriter::new(file);
+
+    // Write header only if file was empty
+    if is_empty {
+        writeln!(writer, "method,class,sourceProjectId,isDirectDependency,id,artefact,group,version,childIds")?;
+    }
+
+    // Write new data rows
+    for row in data {
+        writeln!(writer, "{}", row.join(","))?;
+        println!("{:?}", row);
+    }
+
+
+    Ok(())
+}
+
+pub fn get_annotation_values(
+    jni_env: *mut JNIEnv,
+    classport_info_class: jclass,
+    annotation: jobject,
+    class_class: jclass,
+    name: std::ffi::CString,
+    signature: std::ffi::CString,
+    value: &str,
+) -> Option<String> {
+    let get_annotation_value = unsafe {
+        (**jni_env).GetMethodID.unwrap()(jni_env, classport_info_class, name.as_ptr(), signature.as_ptr())
+    };
     if get_annotation_value.is_null() {
         eprintln!("Error: Unable to get method {}() in get_annotation_values", value);
-        return;
+        return None;
     }
 
     if value == "isDirectDependency" {
         let annotation_value = unsafe {
             (**jni_env).CallBooleanMethod.unwrap()(jni_env, annotation, get_annotation_value)
         };
-        println!("{}: {}", value, annotation_value);
-        return;
+        return Some(if annotation_value == 1 { "true".to_string() } else { "false".to_string() });
     }
 
     if value == "childIds" {
@@ -196,53 +226,41 @@ pub fn get_annotation_values(jni_env: *mut JNIEnv, classport_info_class: jclass,
         };
         if annotation_value.is_null() {
             eprintln!("Error: Unable to get annotation value in get_annotation_values");
-            return;
+            return None;
         }
 
-        let length = unsafe {
-            (**jni_env).GetArrayLength.unwrap()(jni_env, annotation_value)
-        };
+        let length = unsafe { (**jni_env).GetArrayLength.unwrap()(jni_env, annotation_value) };
+        let mut child_ids: Vec<String> = Vec::new();
 
         for i in 0..length {
-            let child_id = unsafe {
-                (**jni_env).GetObjectArrayElement.unwrap()(jni_env, annotation_value, i)
-            };
+            let child_id = unsafe { (**jni_env).GetObjectArrayElement.unwrap()(jni_env, annotation_value, i) };
             if !child_id.is_null() {
                 let mut is_copy: jboolean = 0;
-                let chars = unsafe {
-                    (**jni_env).GetStringUTFChars.unwrap()(jni_env, child_id as jstring, &mut is_copy)
-                };
+                let chars = unsafe { (**jni_env).GetStringUTFChars.unwrap()(jni_env, child_id as jstring, &mut is_copy) };
 
                 if !chars.is_null() {
                     let child_id_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
-                    println!("{}: {}", value, child_id_str);
+                    child_ids.push(child_id_str);
 
-                    unsafe {
-                        (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, child_id as jstring, chars);
-                    }
+                    unsafe { (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, child_id as jstring, chars); }
                 }
             }
         }
-        return;
+        return Some(child_ids.join(",")); // Convert Vec<String> into a single comma-separated string
     }
-    
-    let annotation_value = unsafe {
-        (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, get_annotation_value)
-    };
+
+
+    let annotation_value = unsafe { (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, get_annotation_value) };
     if annotation_value.is_null() {
         eprintln!("Error: Unable to get annotation value in get_annotation_values");
-        return;
+        return None;
     }
-
-
-
 
     let toString_method_name = std::ffi::CString::new("toString").unwrap();
     let toString_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
     let toString_methodID = unsafe {
         (**jni_env).GetMethodID.unwrap()(jni_env, class_class, toString_method_name.as_ptr(), toString_signature.as_ptr())
     };
-
 
     if !toString_methodID.is_null() {
         let annotation_value_string = unsafe {
@@ -254,20 +272,21 @@ pub fn get_annotation_values(jni_env: *mut JNIEnv, classport_info_class: jclass,
                 (**jni_env).GetStringUTFChars.unwrap()(jni_env, annotation_value_string, &mut is_copy)
             };
 
-            if !chars.is_null() && value != "childIds" {
+            if !chars.is_null() {
                 let annotation_str = unsafe { std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned() };
-                println!("{}: {}", value, annotation_str);
 
                 unsafe {
                     (**jni_env).ReleaseStringUTFChars.unwrap()(jni_env, annotation_value_string, chars);
                 }
+
+                return Some(annotation_str);
             }
-            
         }
-      
     }
-    
+
+    None
 }
+
 
 
 
@@ -332,7 +351,16 @@ pub extern "C" fn Agent_OnLoad(vm: *mut JavaVM, options: *mut ::std::os::raw::c_
         println!("Jar added to bootstrap class loader search");
     }
 
+    // check if file annotations.csv exists and delete it
+    let filename = "annotations.csv";
+    let path = std::path::Path::new(filename);
+    if Path::new(path).exists() {
+        let _ = fs::remove_file(path);
+    }
     println!("Agent loaded with options: {:?}", options);
+
+
+
     
     0 // JNI_OK
 }

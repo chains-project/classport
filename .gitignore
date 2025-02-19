@@ -13,4 +13,5 @@ settings.json
 # Project relate files
 *.so
 classport-files/
+*.csv
 
