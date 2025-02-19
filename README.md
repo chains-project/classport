@@ -30,22 +30,28 @@ modifies the JAR files during the build process and is contained in the `classpo
 The embedded class files can be packaged together with the application, or just added to the classpath in place of the "regular" versions of the class files. 
 ### Extracting Phase
 
-This is the phase in which the supply chain information is extracted.  
-It can be done dynamically or statically.
+This is the phase in which the supply chain information is extracted. 
 
-#### Dynamic Analyser
+At the moment, the repository contains 3 versions that implement this phase: Java, C and Rust.
+
+#### Java
+The Java version allows both stati and dynamic analysis
+It can be done dynamically or statically.
 
 The `classport.agent`
 package contains a Java agent that can be run alongside the Classport-ified JAR.
-This agent logs all the supply-chain data for classes that get loaded,
+This agent logs all the supply-chain data for classes that **get loaded**,
 and prints a dependency tree from these at the end. This way, the dependency tree
 will consist of only those dependencies that were actually used at runtime.
-
-#### Static Analyser
 
 The `classport.analyser` package contains two tools for statically analysing
 and modifying JAR files.
 
+#### Rust 
+This version can detect the dependencies that are **executed** at runtime with a method granularity.
+
+#### C
+Same as Rust. In progress, not available now.
 
 ## Usage
 
@@ -54,6 +60,8 @@ Package all the modules. From the root of the Classport project:
 ```console 
 mvn package
 ```
+
+### Embedding (same for all the versions)
 
 Use the Maven plugin to embed supply chain information into the class files of the project using the `embed` goal. From the root directory of the analysed Maven project:
 
@@ -73,7 +81,9 @@ mvn package -Dmaven.repo.local=classport-files
 For multi-module projects, package each project separately as dependency properties
 may differ (e.g. a direct dependency for one module is a transitive one for another).
 
-### Dynamic analysis
+### Extraction
+### Java 
+#### Dynamic analysis
 Use the agent to detect the used classes:
 
 ```console
@@ -84,7 +94,7 @@ This command outputs the **runtime representation** of the software supply chain
 - `classport-deps-list` --> flat list of dependencies
 - `classport-deps-tree` --> tree of dependnecies
 
-### Static analysis
+#### Static analysis
 
 This is the command to perform static analysis:
 ```console
@@ -104,12 +114,26 @@ org.example:hello:jar:0.1.0
 \- org.apache.commons:commons-lang3:jar:3.17.0
 ```
 
-
-
 * `-generateTestJar`, for generating a JAR file where the main class has been modified to force-load classes from all dependencies.
+
+
+### Rust
+- compile the project:
+
+`cargo build --release`
+
+- run the agent:
+
+`java -agentpath:/path/to/target/release/libmy_java_agent.dylib -jar your_app.jar`
+
+[For detailed info](./cargo_agent/cargo_agent/README.md) 
+
+### C
+WIP
 
 ## Requirements
 
 * Maven 
 * Java >= 17
-
+* Rust latest
+* Bindgen 0.71.0 (see also [requirements](https://rust-lang.github.io/rust-bindgen/requirements.html) for bindgen)
