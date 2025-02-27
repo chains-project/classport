@@ -16,7 +16,11 @@ Required versions:
 - Rust latest --> bindgen points always to the latest available Rust version
 ```
 
-- in build.rs substitute the path with the path where the resources are
+- set environment variables
+
+export JVM_LIB_PATH="<path-to-your-jdk-instalaltion>/libexec/openjdk.jdk/Contents/Home/lib/server"
+export JVM_INCLUDE_PATH="<path-to-jvmti.h>" 
+export JNI_INCLUDE_PATH="<path-to-jni.h>"
 
 - compile the project:
 

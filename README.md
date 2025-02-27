@@ -58,7 +58,7 @@ Same as Rust. In progress, not available now.
 Package all the modules. From the root of the Classport project:
 
 ```console 
-mvn package
+mvn install
 ```
 
 ### Embedding (same for all the versions)
