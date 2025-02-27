@@ -63,7 +63,19 @@ extern "C" fn method_entry_callback(
     if !name.is_null() && !class_name.is_null() {
         let name_str = unsafe { std::ffi::CStr::from_ptr(name).to_string_lossy() };
         let class_name_str = unsafe { std::ffi::CStr::from_ptr(class_name).to_string_lossy() };
-        callGetAnnotation(jvmti_env, jni_env, &name_str, &class_name_str, class);
+        // Disable the METHOD_ENTRY event to avoid infinite recursion because we invoke callObjectMethod in the callback which triggers method entry event.
+        let result = disable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_DISABLE);
+        if result == false {
+            eprintln!("Error: Unable to disable METHOD_ENTRY event");
+            return;
+        }
+        call_getAnnotation(jni_env, &name_str, &class_name_str, class);
+        // Enable the METHOD_ENTRY event again
+        let result = enable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE);
+        if result == false {
+            eprintln!("Error: Unable to enable METHOD_ENTRY event");
+            return;
+        }
     }
 
     if !signature.is_null() {
@@ -79,14 +91,7 @@ extern "C" fn method_entry_callback(
     }
 }
 
-fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &str, class_name: &str, class: jclass) {
-    // Disable the METHOD_ENTRY event to avoid infinite recursion because we invoke callObjectMethod in the callback which triggers method entry event.
-    let result = disable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_DISABLE);
-    if result == false {
-        eprintln!("Error: Unable to disable METHOD_ENTRY event");
-        return;
-    }
-
+fn call_getAnnotation(jni_env: *mut JNIEnv, method: &str, class_name: &str, class: jclass) {
     let class_class_name = std::ffi::CString::new("java/lang/Class").unwrap();
     let class_class = unsafe { 
         (**jni_env).FindClass.unwrap()(jni_env, class_class_name.as_ptr()) 
@@ -164,11 +169,10 @@ fn callGetAnnotation(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, method: &st
 
     }
     
-    // Enable the METHOD_ENTRY event again
-    let result = enable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE);
-    if result == false {
-        eprintln!("Error: Unable to enable METHOD_ENTRY event");
+    if !annotation.is_null() {
+        unsafe { (**jni_env).DeleteLocalRef.unwrap()(jni_env, annotation); }
     }
+    
 }
 
 fn save_to_csv(filename: &str, data: Vec<Vec<String>>) -> std::io::Result<()> {
@@ -288,13 +292,6 @@ pub fn get_annotation_values(
 }
 
 
-
-
-#[no_mangle]
-pub extern "C" fn vminit(jvmti_env: *mut jvmtiEnv, jni_env: *mut JNIEnv, thread: jthread) {
-    println!("VM init event, live phase.");  
-}
-
 // no_mangle is used to tell the Rust compiler to not mangle the name of the function, because the JVM will call the function by name.
 #[no_mangle]
 pub extern "C" fn Agent_OnLoad(vm: *mut JavaVM, options: *mut ::std::os::raw::c_char, _reserved: *mut ::std::os::raw::c_void) -> jint {
@@ -328,7 +325,6 @@ pub extern "C" fn Agent_OnLoad(vm: *mut JavaVM, options: *mut ::std::os::raw::c_
     }
 
     callbacks.MethodEntry = Some(method_entry_callback);
-    callbacks.VMInit = Some(vminit);
     let result = unsafe { (**jvmti).SetEventCallbacks.unwrap()(jvmti, &callbacks, std::mem::size_of::<jvmtiEventCallbacks>() as jint) };
     if result != (jvmtiError_JVMTI_ERROR_NONE as jint).try_into().unwrap() {
         eprintln!("Error: Unable to set event callbacks in Agent_OnLoad");
