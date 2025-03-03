@@ -7,7 +7,22 @@ use std::io::{Write, BufWriter};
 use std::fs;
 use std::path::Path;
 
+use std::collections::HashMap;
+use std::sync::{Mutex, Once};
+
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+static mut ANNOTATION_CACHE: Option<Mutex<HashMap<String, Vec<Vec<String>>>>> = None;
+static INIT: Once = Once::new();
+
+fn get_annotation_cache() -> &'static Mutex<HashMap<String, Vec<Vec<String>>>> {
+    unsafe {
+        INIT.call_once(|| {
+            ANNOTATION_CACHE = Some(Mutex::new(HashMap::new()));
+        });
+        ANNOTATION_CACHE.as_ref().unwrap()
+    }
+}
 
 // "extern "C"" is used to tell the Rust compiler to use the C calling convention for the function, 
 // because the JVM will call the function using the C calling convention." 
@@ -69,7 +84,28 @@ extern "C" fn method_entry_callback(
             eprintln!("Error: Unable to disable METHOD_ENTRY event");
             return;
         }
-        call_getAnnotation(jni_env, &name_str, &class_name_str, class);
+
+        if let Some(mut annotation_data) = get_annotation_data(&class_name_str) {
+            // modify annotaion_data to insert the new method name 
+            if let Some(row) = annotation_data.first_mut() {
+                if let Some(method_name) = row.first_mut() {
+                    *method_name = name_str.to_string();
+                } else {
+                    eprintln!("Error: Unable to modify method name in method_entry_callback");
+                    return;
+                }
+            } else {
+                eprintln!("Error: Unable to modify method name in method_entry_callback");
+                return;
+            }
+
+            let filename = "annotations.csv";
+            save_to_csv(filename, annotation_data).expect("Failed to write CSV file");
+        } else {
+            call_getAnnotation(jni_env, &name_str, &class_name_str, class);
+        }
+
+
         // Enable the METHOD_ENTRY event again
         let result = enable_event(jvmti_env, jvmtiEvent_JVMTI_EVENT_METHOD_ENTRY, jvmtiEventMode_JVMTI_ENABLE);
         if result == false {
@@ -128,42 +164,12 @@ fn call_getAnnotation(jni_env: *mut JNIEnv, method: &str, class_name: &str, clas
     };
 
     if !annotation.is_null() {
-        let source_project_id_name = std::ffi::CString::new("sourceProjectId").unwrap();
-        let source_project_id_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
-
-        let is_direct_dep_name = std::ffi::CString::new("isDirectDependency").unwrap();
-        let is_direct_dep_signature = std::ffi::CString::new("()Z").unwrap();
-
-        let id_name = std::ffi::CString::new("id").unwrap();
-        let id_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
-
-        let artefact_name = std::ffi::CString::new("artefact").unwrap();
-        let artefact_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
-
-        let group_name = std::ffi::CString::new("group").unwrap();
-        let group_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
-
-        let version_name = std::ffi::CString::new("version").unwrap();
-        let version_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
-
-        let child_ids_name = std::ffi::CString::new("childIds").unwrap();
-        let child_ids_signature = std::ffi::CString::new("()[Ljava/lang/String;").unwrap();
-
-        let mut annotation_data: Vec<Vec<String>> = Vec::new();
-
-        let mut row = Vec::new();
-        row.push(method.to_string());
-        row.push(class_name.to_string());
-        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, source_project_id_name, source_project_id_signature, "sourceProjectId").unwrap_or("".to_string()));
-        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, is_direct_dep_name, is_direct_dep_signature, "isDirectDependency").unwrap_or("false".to_string()));
-        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, id_name, id_signature, "id").unwrap_or("".to_string()));
-        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, artefact_name, artefact_signature, "artefact").unwrap_or("".to_string()));
-        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, group_name, group_signature, "group").unwrap_or("".to_string()));
-        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, version_name, version_signature, "version").unwrap_or("".to_string()));
-        row.push(get_annotation_values(jni_env, classport_info_class, annotation, class_class, child_ids_name, child_ids_signature, "childIds").unwrap_or("".to_string()));
-
-        annotation_data.push(row);
-
+        let annotation_data = get_annotation_values(method, class_name, annotation, jni_env, classport_info_class, class_class);
+        if annotation_data.is_empty() {
+            eprintln!("Error: Unable to get annotation data in method_entry_callback");
+            return;
+        }
+        insert_annotation_data(class_name.to_string(), annotation_data.clone());
         let filename = "annotations.csv";
         save_to_csv(filename, annotation_data).expect("Failed to write CSV file");
 
@@ -173,6 +179,46 @@ fn call_getAnnotation(jni_env: *mut JNIEnv, method: &str, class_name: &str, clas
         unsafe { (**jni_env).DeleteLocalRef.unwrap()(jni_env, annotation); }
     }
     
+}
+
+fn get_annotation_values(method: &str, class_name: &str, annotation: jobject, jni_env: *mut JNIEnv, classport_info_class: jclass, class_class: jclass) -> Vec<Vec<String>> {
+    let source_project_id_name = std::ffi::CString::new("sourceProjectId").unwrap();
+    let source_project_id_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+
+    let is_direct_dep_name = std::ffi::CString::new("isDirectDependency").unwrap();
+    let is_direct_dep_signature = std::ffi::CString::new("()Z").unwrap();
+
+    let id_name = std::ffi::CString::new("id").unwrap();
+    let id_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+
+    let artefact_name = std::ffi::CString::new("artefact").unwrap();
+    let artefact_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+
+    let group_name = std::ffi::CString::new("group").unwrap();
+    let group_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+
+    let version_name = std::ffi::CString::new("version").unwrap();
+    let version_signature = std::ffi::CString::new("()Ljava/lang/String;").unwrap();
+
+    let child_ids_name = std::ffi::CString::new("childIds").unwrap();
+    let child_ids_signature = std::ffi::CString::new("()[Ljava/lang/String;").unwrap();
+
+    let mut annotation_data: Vec<Vec<String>> = Vec::new();
+
+    let mut row = Vec::new();
+    row.push(method.to_string());
+    row.push(class_name.to_string());
+    row.push(get_annotation_value(jni_env, classport_info_class, annotation, class_class, source_project_id_name, source_project_id_signature, "sourceProjectId").unwrap_or("".to_string()));
+    row.push(get_annotation_value(jni_env, classport_info_class, annotation, class_class, is_direct_dep_name, is_direct_dep_signature, "isDirectDependency").unwrap_or("false".to_string()));
+    row.push(get_annotation_value(jni_env, classport_info_class, annotation, class_class, id_name, id_signature, "id").unwrap_or("".to_string()));
+    row.push(get_annotation_value(jni_env, classport_info_class, annotation, class_class, artefact_name, artefact_signature, "artefact").unwrap_or("".to_string()));
+    row.push(get_annotation_value(jni_env, classport_info_class, annotation, class_class, group_name, group_signature, "group").unwrap_or("".to_string()));
+    row.push(get_annotation_value(jni_env, classport_info_class, annotation, class_class, version_name, version_signature, "version").unwrap_or("".to_string()));
+    row.push(get_annotation_value(jni_env, classport_info_class, annotation, class_class, child_ids_name, child_ids_signature, "childIds").unwrap_or("".to_string()));
+
+    annotation_data.push(row);
+
+    return annotation_data;
 }
 
 fn save_to_csv(filename: &str, data: Vec<Vec<String>>) -> std::io::Result<()> {
@@ -193,14 +239,14 @@ fn save_to_csv(filename: &str, data: Vec<Vec<String>>) -> std::io::Result<()> {
     // Write new data rows
     for row in data {
         writeln!(writer, "{}", row.join(","))?;
-        println!("{:?}", row);
+        // println!("{:?}", row);
     }
 
 
     Ok(())
 }
 
-pub fn get_annotation_values(
+pub fn get_annotation_value(
     jni_env: *mut JNIEnv,
     classport_info_class: jclass,
     annotation: jobject,
@@ -213,7 +259,7 @@ pub fn get_annotation_values(
         (**jni_env).GetMethodID.unwrap()(jni_env, classport_info_class, name.as_ptr(), signature.as_ptr())
     };
     if get_annotation_value.is_null() {
-        eprintln!("Error: Unable to get method {}() in get_annotation_values", value);
+        eprintln!("Error: Unable to get method {}() in get_annotation_value", value);
         return None;
     }
 
@@ -229,7 +275,7 @@ pub fn get_annotation_values(
             (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, get_annotation_value) as jobjectArray
         };
         if annotation_value.is_null() {
-            eprintln!("Error: Unable to get annotation value in get_annotation_values");
+            eprintln!("Error: Unable to get annotation value in get_annotation_value");
             return None;
         }
 
@@ -256,7 +302,7 @@ pub fn get_annotation_values(
 
     let annotation_value = unsafe { (**jni_env).CallObjectMethod.unwrap()(jni_env, annotation, get_annotation_value) };
     if annotation_value.is_null() {
-        eprintln!("Error: Unable to get annotation value in get_annotation_values");
+        eprintln!("Error: Unable to get annotation value in get_annotation_value");
         return None;
     }
 
@@ -289,6 +335,16 @@ pub fn get_annotation_values(
     }
 
     None
+}
+
+fn insert_annotation_data(class_name: String, annotation_data: Vec<Vec<String>>) {
+    let mut cache = get_annotation_cache().lock().unwrap();
+    cache.insert(class_name, annotation_data);
+}
+
+fn get_annotation_data(class_name: &str) -> Option<Vec<Vec<String>>> {
+    let cache = get_annotation_cache().lock().unwrap();
+    cache.get(class_name).cloned()
 }
 
 
