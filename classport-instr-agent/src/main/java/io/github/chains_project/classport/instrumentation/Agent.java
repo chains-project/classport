@@ -3,10 +3,8 @@ package io.github.chains_project.classport.instrumentation;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -17,6 +15,8 @@ import io.github.chains_project.classport.commons.ClassportInfo;
 
 public class Agent {
     //private static final Map<String, ClassportInfo> annotationCache = new HashMap<>();
+    private static final Map<String, ClassportInfo> annotationCache = new ConcurrentHashMap<>();
+
 
     public static void premain(String agentArgs, Instrumentation inst) {
         System.out.println("Hello from the agent!");
@@ -25,19 +25,24 @@ public class Agent {
 
     static class MethodTransformer implements ClassFileTransformer {
         //private final Set<String> visitedClasses = new HashSet<>();
-        private static final Set<String> transformedClasses = new ConcurrentSkipListSet<>();
-        private static final Map<String, ClassportInfo> annotationCache = new HashMap<>();
+        // private static final Set<String> transformedClasses = new ConcurrentSkipListSet<>();
+        // private static final Map<String, ClassportInfo> annotationCache = new HashMap<>();
 
 
         @Override
         public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
-            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS); // Try COMPUTE_MAXS instead of COMPUTE_FRAMES
+            if (classBeingRedefined != null) {
+                return classfileBuffer;
+            }
+            
             try {
-                ClassportInfo ann = annotationCache.computeIfAbsent(className, key -> AnnotationReader.getAnnotationValues(classfileBuffer));
+                ClassportInfo ann = annotationCache.computeIfAbsent(className, key -> AnnotationReader.getAnnotationValues(classfileBuffer)); //AnnotationReader.getAnnotationValues(classfileBuffer); 
                 if (ann != null) {
+                    ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS); // Try COMPUTE_MAXS instead of COMPUTE_FRAMES
                     ClassReader reader = new ClassReader(classfileBuffer);
-                    ClassVisitor visitor = new MethodInterceptorVisitor(writer, className);
+                    ClassVisitor visitor = new MethodInterceptorVisitor(writer, className, ann);
                     reader.accept(visitor, ClassReader.EXPAND_FRAMES);
+
                     return writer.toByteArray();
                 } else {
                     return classfileBuffer; // Return original byte array if annotation is not found
