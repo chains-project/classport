@@ -131,6 +131,12 @@ org.example:hello:jar:0.1.0
 ### C
 WIP
 
+### Instrumentation API
+
+- run the agent:
+
+`java -javaagent:<path-to-agent-jar> -jar <path-to-app-to-be-analyzed> [options related to the analyzing app]`
+
 ## Requirements
 
 * Maven 

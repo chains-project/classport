@@ -14,29 +14,44 @@ import org.objectweb.asm.Opcodes;
 import io.github.chains_project.classport.commons.ClassportInfo;
 
 public class MethodInterceptorVisitor extends ClassVisitor {
-    private final String className;
-    private final ClassportInfo ann;
     private static final int QUEUE_CAPACITY = 1000000;
-    static final BlockingQueue<String> queue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
-    //private  final Thread writerThread;
     private static final int QUEUE_THRESHOLD = 100000;
+    private static final String OUTPUT_FILE = "output.csv";
+
+    private final String className;
+    private final ClassportInfo ann; 
+    static final BlockingQueue<String> queue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);    
 
     public MethodInterceptorVisitor(ClassVisitor cv, String className, ClassportInfo ann) {
         super(Opcodes.ASM9, cv);
         this.className = className;
         this.ann = ann;
     
-         // Write header to the file if it doesn't exist or is empty
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.csv", true))) {
-            File file = new File("output.csv");
-            if (file.length() == 0) { // Check if the file is empty
-                writer.write("Class,Method,sourceProjectId,isDirect,id,artefact,group,version,childIds\n"); // Replace with your actual headers
-                writer.flush();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        // Initialize the CSV file adding the header
+        initializeCSVFileHeader();
+        // Initialize the queue processing thread to write to the file in batches 
+        initializeQueueWriterThread();
+        // Add a shutdown hook to process remaining items in the queue
+        addShutdownHookForQueueProcessing();
+    }
 
+    private void addShutdownHookForQueueProcessing() {
+        // Add a shutdown hook to process remaining items in the queue
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.csv", true))) {
+                synchronized (queue) {
+                    while (!queue.isEmpty()) {
+                        writer.write(queue.poll() + "\n");
+                    }
+                    writer.flush(); // Ensure all remaining data is written
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }));
+    }
+
+    private void initializeQueueWriterThread() {
         // Initialize the queue processing thread
         Thread writerThread = new Thread(() -> {
             try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.csv", true))) {
@@ -58,20 +73,19 @@ public class MethodInterceptorVisitor extends ClassVisitor {
     
         writerThread.setDaemon(true);
         writerThread.start();
-    
-        // Add a shutdown hook to process remaining items in the queue
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.csv", true))) {
-                synchronized (queue) {
-                    while (!queue.isEmpty()) {
-                        writer.write(queue.poll() + "\n");
-                    }
-                    writer.flush(); // Ensure all remaining data is written
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
+    }
+
+    private void initializeCSVFileHeader() {
+        // Write header to the file if it doesn't exist or is empty
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE, true))) {
+            File file = new File(OUTPUT_FILE);
+            if (file.length() == 0) { 
+                writer.write("Class,Method,sourceProjectId,isDirect,id,artefact,group,version,childIds\n"); // Replace with your actual headers
+                writer.flush();
             }
-        }));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
     
     public static void addToQueue(String content) {
