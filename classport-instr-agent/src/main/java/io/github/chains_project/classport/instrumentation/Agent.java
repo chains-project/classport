@@ -24,14 +24,14 @@ public class Agent {
     static class MethodTransformer implements ClassFileTransformer {
         @Override
         public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
-            if (classBeingRedefined != null) {
+            if (classBeingRedefined != null ) {
                 return classfileBuffer;
             }
             
             return transformClass(className, classfileBuffer);
         }
 
-        private byte[] transformClass(String className, byte[] classfileBuffer) {
+        public byte[] transformClass(String className, byte[] classfileBuffer) {
             try {
                 ClassportInfo annotationInfo = getAnnotationInfo(className, classfileBuffer);
                 if (annotationInfo != null) {
@@ -43,11 +43,11 @@ public class Agent {
             return classfileBuffer;
         }
 
-        private ClassportInfo getAnnotationInfo(String className, byte[] classfileBuffer) {
+        public ClassportInfo getAnnotationInfo(String className, byte[] classfileBuffer) {
             return annotationCache.computeIfAbsent(className, key -> AnnotationReader.getAnnotationValues(classfileBuffer));
         }
 
-        private byte[] applyTransformations(byte[] classfileBuffer, String className, ClassportInfo annotationInfo) {
+        public byte[] applyTransformations(byte[] classfileBuffer, String className, ClassportInfo annotationInfo) {
             ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
             ClassReader reader = new ClassReader(classfileBuffer);
             ClassVisitor visitor = new MethodInterceptorVisitor(writer, className, annotationInfo);

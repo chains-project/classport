@@ -35,10 +35,25 @@
 </dependency> -->
 
                     <dependency>
-      <groupId>io.github.chains-project</groupId>
-      <artifactId>classport-commons</artifactId>
-      <version>${project.parent.version}</version>
-    </dependency>
+                <groupId>io.github.chains-project</groupId>
+                <artifactId>classport-commons</artifactId>
+                <version>${project.parent.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>org.junit.jupiter</groupId>
+                    <artifactId>junit-jupiter-api</artifactId>
+                    <scope>test</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.junit.jupiter</groupId>
+                    <artifactId>junit-jupiter-engine</artifactId>
+                    <scope>test</scope>
+                </dependency>
+                <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <scope>test</scope>
+            </dependency>
     </dependencies>
 
 

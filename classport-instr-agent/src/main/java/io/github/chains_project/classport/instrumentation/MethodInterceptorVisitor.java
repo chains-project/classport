@@ -16,7 +16,7 @@ import io.github.chains_project.classport.commons.ClassportInfo;
 public class MethodInterceptorVisitor extends ClassVisitor {
     private static final int QUEUE_CAPACITY = 1000000;
     private static final int QUEUE_THRESHOLD = 100000;
-    private static final String OUTPUT_FILE = "output.csv";
+    static String OUTPUT_FILE = "output.csv";
 
     private final String className;
     private final ClassportInfo ann; 
