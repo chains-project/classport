@@ -38,23 +38,27 @@ public class MethodInterceptorVisitor extends ClassVisitor {
     private void addShutdownHookForQueueProcessing() {
         // Add a shutdown hook to process remaining items in the queue
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.csv", true))) {
-                synchronized (queue) {
-                    while (!queue.isEmpty()) {
-                        writer.write(queue.poll() + "\n");
-                    }
-                    writer.flush(); // Ensure all remaining data is written
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            writeRemainingQueueToFile();
         }));
+    }
+
+    void writeRemainingQueueToFile() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE, true))) {
+            synchronized (queue) {
+                while (!queue.isEmpty()) {
+                    writer.write(queue.poll() + "\n");
+                }
+                writer.flush(); // Ensure all remaining data is written
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void initializeQueueWriterThread() {
         // Initialize the queue processing thread
         Thread writerThread = new Thread(() -> {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.csv", true))) {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE, true))) {
                 while (true) {
                     if (queue.size() >= QUEUE_THRESHOLD) {
                         synchronized (queue) {
