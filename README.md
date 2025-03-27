@@ -35,7 +35,7 @@ This is the phase in which the supply chain information is extracted.
 At the moment, the repository contains 3 versions that implement this phase: Java, C and Rust.
 
 #### Java
-The Java version allows both stati and dynamic analysis
+The Java version allows both static and dynamic analysis
 It can be done dynamically or statically.
 
 The `classport.agent`
