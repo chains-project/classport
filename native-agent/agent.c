@@ -34,11 +34,8 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
     if (err == JVMTI_ERROR_NONE) {
         err = (*jvmti_env)->GetMethodName(jvmti_env, method, &method_name, &method_signature, NULL);
     } 
-    // Check if the method name is "customSleepingThread"
 
-    //  && strcmp(method_name, "customSleepingThread") == 0
     if (err == JVMTI_ERROR_NONE) {
-        // printf("Executing customSleepingThread method\n");
         jclass class_class = (*jni_env)->FindClass(jni_env, "java/lang/Class");
         if (class_class == NULL) {
             fprintf(stderr, "Error: Unable to find class java/lang/Class in onMethodEntry\n");
@@ -60,10 +57,6 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
             fprintf(stderr, "Error: Unable to get annotations in onMethodEntry\n");
             return;
         }
-        if (setEventNotification(jvmti_env, JVMTI_EVENT_METHOD_ENTRY, JVMTI_ENABLE, NULL) == 0) {
-            fprintf(stderr, "Error: Unable to enable METHOD_ENTRY event in onMethodEntry\n");
-            return;
-        }
 
         jclass annotationClass = (*jni_env)->FindClass(jni_env, "java/lang/annotation/Annotation");
         jmethodID toStringMethod = (*jni_env)->GetMethodID(jni_env, annotationClass, "toString", "()Ljava/lang/String;");
@@ -77,7 +70,7 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
             jobject annotation = (*jni_env)->GetObjectArrayElement(jni_env, annotations, i);
             jstring annotationStr = (jstring)(*jni_env)->CallObjectMethod(jni_env, annotation, toStringMethod);
             const char *annotationCStr = (*jni_env)->GetStringUTFChars(jni_env, annotationStr, NULL);
-            printf("Annotation: %s\n", annotationCStr);
+            printf("[\"%s\", \"%s\", \"%s\"]\n", method_name, class_signature, annotationCStr);
             if (annotationStr) (*jni_env)->ReleaseStringUTFChars(jni_env, annotationStr, annotationCStr);
             if (annotation) (*jni_env)->DeleteLocalRef(jni_env, annotation);
             if (annotationStr) (*jni_env)->DeleteLocalRef(jni_env, annotationStr);
@@ -86,11 +79,10 @@ void JNICALL onMethodEntry(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jthread thread,
         if (annotationClass) (*jni_env)->DeleteLocalRef(jni_env, annotationClass);
     }
 
-    // Print the executing class and method
-    // if (err == JVMTI_ERROR_NONE) {
-    //     printf("Executing Class: %s, Method: %s%s\n", class_signature, method_name, method_signature);
-    // }
-
+    if (setEventNotification(jvmti_env, JVMTI_EVENT_METHOD_ENTRY, JVMTI_ENABLE, NULL) == 0) {
+        fprintf(stderr, "Error: Unable to enable METHOD_ENTRY event in onMethodEntry\n");
+        return;
+    }
     // Deallocate JVMTI memory
     if (class_signature) (*jvmti_env)->Deallocate(jvmti_env, (unsigned char *)class_signature);
     if (method_name) (*jvmti_env)->Deallocate(jvmti_env, (unsigned char *)method_name);

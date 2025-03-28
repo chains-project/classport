@@ -1,27 +1,50 @@
-## Rust Agent (WIP)
+## Rust Agent 
 Here is an agent in Rust.
 
-* lib.rs is the agent (for the moment just intercept onMethodEntry event and print "capitalize" when this method is intercepted);
-* build.rs is the code that generate the binding of jvmti.h. It uses [rust-bindgen](https://rust-lang.github.io/rust-bindgen/) 
+* lib.rs is the agent that intercepts the executing dependencies and extracts the software supply chain information from them by reading the embedded annotations. To reach this goal, it intercepts every [Method Entry event](https://docs.oracle.com/en/java/javase/20/docs/specs/jvmti.html#MethodEntry);
+* build.rs is the code that generates the binding of jvmti.h and jni.h. It uses [rust-bindgen](https://rust-lang.github.io/rust-bindgen/) 
 
-### To use it
+### How to use it
 
-Requirements: see [bindgen guide](https://rust-lang.github.io/rust-bindgen/requirements.html).
+- requirements
 
-- set the required environment variables
+See [bindgen guide](https://rust-lang.github.io/rust-bindgen/requirements.html).
 
+``` 
+Required versions:
+- bindgen 0.71.1
+- Rust latest --> bindgen points always to the latest available Rust version
 ```
-export JVM_LIB_PATH=<path-to-your-jdk-instalaltion>/libexec/openjdk.jdk/Contents/Home/lib/server
-export JVM_INCLUDE_PATH=<path-to-jvmti.h> 
-export JNI_INCLUDE_PATH=<path-to-jni.h>
-```
+
+- set environment variables
+
+export JVM_LIB_PATH="<path-to-your-jdk-instalaltion>/libexec/openjdk.jdk/Contents/Home/lib/server"
+export JVM_INCLUDE_PATH="<path-to-jvmti.h>" 
+export JNI_INCLUDE_PATH="<path-to-jni.h>"
 
 - compile the project:
 
 `cargo build --release`
 
+The generated binding is here cargo_agent/cargo_agent/target/debug/build/cargo_agent-a1019fb4d4c51e4b/out/bindings.rs
+
+
 - run the agent:
 
 `java -agentpath:/path/to/target/release/libmy_java_agent.dylib -jar your_app.jar`
+
+The command outputs a CSV file (annotations.csv) with the detected dependencies.
+
+For each dependency, the following information is displayed:
+- method -> intercepted method
+- class -> class that declares the method
+- sourceProjectId -> id of the parent project
+- isDirectDependency -> boolean that indicates if the dependency is direct or transitive
+- id -> id of the dependency that the method belongs to
+- artefact -> artefact of the dependency that the method belongs to
+- group -> group of the dependency that the method belongs to
+- version -> version of the dependency that the method belongs to
+- childIds -> ids of direct dependencies of the dependency that the method belongs to
+
 
 

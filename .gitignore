@@ -13,4 +13,10 @@ settings.json
 # Project relate files
 *.so
 classport-files/
+*.csv
+
+# test
+pdfbox-3.0.4/
+project-to-test/
+graphhopper/
 
