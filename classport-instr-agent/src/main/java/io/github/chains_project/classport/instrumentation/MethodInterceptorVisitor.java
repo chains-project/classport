@@ -4,6 +4,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -16,17 +18,27 @@ import io.github.chains_project.classport.commons.ClassportInfo;
 public class MethodInterceptorVisitor extends ClassVisitor {
     private static final int QUEUE_CAPACITY = 1000000;
     private static final int QUEUE_THRESHOLD = 100000;
-    static String OUTPUT_FILE = "output.csv";
+    // static String OUTPUT_FILE = "output.csv";
+    static String OUTPUT_FILE;
+    static Path outputPath;
 
     private final String className;
     private final ClassportInfo ann; 
     static final BlockingQueue<String> queue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);    
 
-    public MethodInterceptorVisitor(ClassVisitor cv, String className, ClassportInfo ann) {
+    public MethodInterceptorVisitor(ClassVisitor cv, String className, ClassportInfo ann, String OUTPUT_FILE, Path OUTPUT_PATH_DIR) {
         super(Opcodes.ASM9, cv);
         this.className = className;
         this.ann = ann;
+        MethodInterceptorVisitor.OUTPUT_FILE = OUTPUT_FILE;
     
+        outputPath = OUTPUT_PATH_DIR.resolve(MethodInterceptorVisitor.OUTPUT_FILE);
+        // Ensure the directory exists
+        try {
+            Files.createDirectories(OUTPUT_PATH_DIR);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create output directory: " + OUTPUT_PATH_DIR, e);
+        }
         // Initialize the CSV file adding the header
         initializeCSVFileHeader();
         // Initialize the queue processing thread to write to the file in batches 
@@ -43,7 +55,7 @@ public class MethodInterceptorVisitor extends ClassVisitor {
     }
 
     void writeRemainingQueueToFile() {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE, true))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath.toFile(), true))) {
             synchronized (queue) {
                 while (!queue.isEmpty()) {
                     writer.write(queue.poll() + "\n");
@@ -58,7 +70,7 @@ public class MethodInterceptorVisitor extends ClassVisitor {
     private void initializeQueueWriterThread() {
         // Initialize the queue processing thread
         Thread writerThread = new Thread(() -> {
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE, true))) {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath.toFile(), true))) {
                 while (true) {
                     if (queue.size() >= QUEUE_THRESHOLD) {
                         synchronized (queue) {
@@ -81,10 +93,10 @@ public class MethodInterceptorVisitor extends ClassVisitor {
 
     private void initializeCSVFileHeader() {
         // Write header to the file if it doesn't exist or is empty
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(OUTPUT_FILE, true))) {
-            File file = new File(OUTPUT_FILE);
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath.toFile(), true))) {
+            File file = outputPath.toFile();
             if (file.length() == 0) { 
-                writer.write("Class,Method,sourceProjectId,isDirect,id,artefact,group,version,childIds\n"); // Replace with your actual headers
+                writer.write("Class,Method,sourceProjectId,isDirect,id,artefact,group,version,childIds\n"); 
                 writer.flush();
             }
         } catch (IOException e) {

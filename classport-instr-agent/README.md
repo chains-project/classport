@@ -21,7 +21,7 @@ It can intercept the methods actually used in an application and create CSV file
 After packaging the program:
 
 ```console
-java -javaagent:<path-to-agent-jar> -jar <path-to-app-to-be-analyzed> [options related to the analyzing app]
+java -javaagent:<path-to-agent-jar>=[<name-of-the-project>,<location-path>] -jar <path-to-app-to-be-analyzed> [options related to the analyzing app]
 ```
 
 An `output.csv`file is created into the folder.

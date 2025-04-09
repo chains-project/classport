@@ -32,11 +32,12 @@ public class MethodInterceptorVisitorTest {
     @Test
     public void testInitializeCSVFileHeaderCreatesFileWithHeader(@TempDir Path tempDir) throws IOException {
         MethodInterceptorVisitor.OUTPUT_FILE = tempDir.resolve("output.csv").toString();
+        Agent.OUTPUT_PATH_DIR = tempDir;
 
         ClassVisitor mockClassVisitor = Mockito.mock(ClassVisitor.class);
         ClassportInfo mockAnnotation = Mockito.mock(ClassportInfo.class);
 
-        new MethodInterceptorVisitor(mockClassVisitor, "TestClass", mockAnnotation);
+        new MethodInterceptorVisitor(mockClassVisitor, "TestClass", mockAnnotation, MethodInterceptorVisitor.OUTPUT_FILE, Agent.OUTPUT_PATH_DIR);
 
         File file = new File(MethodInterceptorVisitor.OUTPUT_FILE);
         assertTrue(file.exists(), "File should be created");
@@ -49,10 +50,15 @@ public class MethodInterceptorVisitorTest {
     }
 
     @Test
-    public void testVisitMethodReturnsMethodInterceptor() {
+    public void testVisitMethodReturnsMethodInterceptor(@TempDir Path tempDir) {
         ClassVisitor mockClassVisitor = Mockito.mock(ClassVisitor.class);
-        ClassportInfo mockAnnotation = Mockito.mock(ClassportInfo.class);
-        MethodInterceptorVisitor visitor = new MethodInterceptorVisitor(mockClassVisitor, "TestClass", mockAnnotation);
+        ClassportInfo mockAnnotation = Mockito.mock(ClassportInfo.class); 
+        // Mock output file and path
+        MethodInterceptorVisitor.OUTPUT_FILE = tempDir.resolve("output.csv").toString();
+        Agent.OUTPUT_PATH_DIR = tempDir;
+
+        
+        MethodInterceptorVisitor visitor = new MethodInterceptorVisitor(mockClassVisitor, "TestClass", mockAnnotation, MethodInterceptorVisitor.OUTPUT_FILE, Agent.OUTPUT_PATH_DIR);
 
         MethodVisitor result = visitor.visitMethod(Opcodes.ACC_PUBLIC, "testMethod", "()V", null, null);
 
@@ -85,7 +91,9 @@ public class MethodInterceptorVisitorTest {
 
     @Test
     public void testShutdownHookProcessesRemainingQueueItems(@TempDir Path tempDir) throws IOException {
+        // MethodInterceptorVisitor.OUTPUT_FILE = tempDir.resolve("output.csv").toString();
         MethodInterceptorVisitor.OUTPUT_FILE = tempDir.resolve("output.csv").toString();
+        Agent.OUTPUT_PATH_DIR = tempDir;
 
         File file = new File(MethodInterceptorVisitor.OUTPUT_FILE);
         file.createNewFile();
@@ -102,8 +110,9 @@ public class MethodInterceptorVisitorTest {
         Mockito.when(mockAnnotation.group()).thenReturn("group");
         Mockito.when(mockAnnotation.version()).thenReturn("version");
         Mockito.when(mockAnnotation.childIds()).thenReturn(new String[]{"child1", "child2"});
+    
 
-        MethodInterceptorVisitor visitor = new MethodInterceptorVisitor(mockClassVisitor, "TestClass", mockAnnotation);
+        MethodInterceptorVisitor visitor = new MethodInterceptorVisitor(mockClassVisitor, "TestClass", mockAnnotation, MethodInterceptorVisitor.OUTPUT_FILE, Agent.OUTPUT_PATH_DIR);
         visitor.writeRemainingQueueToFile();
 
         // Verify the file contents
