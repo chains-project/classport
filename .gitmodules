@@ -1,0 +1,3 @@
+[submodule "classport-experiments"]
+	path = classport-experiments
+	url = git@github.com:chains-project/classport-experiments.git
