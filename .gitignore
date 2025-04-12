@@ -14,8 +14,8 @@ settings.json
 *.so
 classport-files/
 *.csv
+output/
 
-# test
-pdfbox-3.0.4/
-graphhopper/
+
+
 
