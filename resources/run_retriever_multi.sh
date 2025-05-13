@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Define paths relative to the script's directory
 CLASS_PORT_AGENT="$SCRIPT_DIR/../classport-instr-agent/target/classport-instr-agent-0.1.0-SNAPSHOT.jar"
-SIMPLE_APP="$SCRIPT_DIR/multi/executor/target/executor-1.0-SNAPSHOT.jar"
+SIMPLE_APP="$SCRIPT_DIR/multi/executor/target/executor-1.0.jar"
 PROJECT_NAME="executor"
 OUTPUT_DIR="output"
 

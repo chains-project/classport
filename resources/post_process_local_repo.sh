@@ -34,10 +34,10 @@ esac
 rm -rf "$MERGED_REPO"
 mkdir -p "$MERGED_REPO"
 
-# Find and copy all classport-experiments folders from submodules
+# Find and copy all classport-files folders from submodules
 find ${PROJECT_FOLDER} -type d -name "classport-files" | while read -r EXP_DIR; do
   echo "Copying from $EXP_DIR"
   cp -r "$EXP_DIR/"* "$MERGED_REPO/"
 done
 
-echo "✅ All classport-experiments merged into $MERGED_REPO"
+echo "✅ All classport-files merged into $MERGED_REPO"

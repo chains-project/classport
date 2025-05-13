@@ -6,12 +6,12 @@
     <parent>
           <groupId>com.example</groupId>
           <artifactId>multi</artifactId>
-          <version>1.0-SNAPSHOT</version>
+          <version>1.0</version>
     </parent>
 
     <groupId>com.example</groupId>
     <artifactId>executor</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -26,13 +26,48 @@
     <dependency>
     <groupId>com.example</groupId>
     <artifactId>submulti</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
 </dependency>
     </dependencies>
 
-    <build>
+<build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        
+        <configuration>
+          <archive>
+            <manifest>
+              <addClasspath>true</addClasspath>
+              <mainClass>com.example.Executor</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+        
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <createDependencyReducedPom>false</createDependencyReducedPom>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+    <!-- <build>
         <plugins>
-            <!-- Maven Jar Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -40,7 +75,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.example.Executor</mainClass> <!-- Replace with your main class -->
+                            <mainClass>com.example.Executor</mainClass> 
                         </manifest>
                     </archive>
                 </configuration>
@@ -62,12 +97,20 @@
                                 <mainClass>com.example.Executor</mainClass>
                             </transformer>
                         </transformers>
+<filters>
+    <filter>
+        <artifact>com.example:executor</artifact>
+        <includes>
+            <include>**/*.class</include>
+        </includes>
+    </filter>
+</filters>
+    
                     </configuration>
                 </execution>
             </executions>
         </plugin>
         </plugins>
 
-    </build>     
-
+    </build>-->
 </project>
