@@ -6,7 +6,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.ProtectionDomain;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,6 +24,8 @@ public class Agent {
     private static final String TIMESTAMP = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
     static String OUTPUT_FILE = "_" + TIMESTAMP + ".csv";
     static Path OUTPUT_PATH_DIR = Paths.get(System.getProperty("user.dir"), "output");
+    static List<String> nonAnnotatedClasses = new ArrayList<>();
+
 
 
     public static void premain(String agentArgs, Instrumentation inst) {
@@ -38,6 +42,7 @@ public class Agent {
             }            
             System.out.println("Output file: " + OUTPUT_FILE);
             System.out.println("Output path: " + OUTPUT_PATH_DIR);
+            System.err.println("Not annotated classes will be saved in " + OUTPUT_FILE.replace(".csv", "_nonAnnotatedClasses.txt"));
         }
         inst.addTransformer(new MethodTransformer());
     }
@@ -57,6 +62,9 @@ public class Agent {
                 ClassportInfo annotationInfo = getAnnotationInfo(className, classfileBuffer);
                 if (annotationInfo != null) {
                     return applyTransformations(classfileBuffer, className, annotationInfo);
+                } 
+                else {
+                    nonAnnotatedClasses.add(className); 
                 }
             } catch (Exception e) {
                 System.err.println("Error transforming class " + className + ": " + e.getMessage());

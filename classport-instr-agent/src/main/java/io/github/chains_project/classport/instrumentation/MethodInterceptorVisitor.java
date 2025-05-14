@@ -44,13 +44,14 @@ public class MethodInterceptorVisitor extends ClassVisitor {
         // Initialize the queue processing thread to write to the file in batches 
         initializeQueueWriterThread();
         // Add a shutdown hook to process remaining items in the queue
-        addShutdownHookForQueueProcessing();
+        addShutdownHookForQueueProcessing(OUTPUT_PATH_DIR);
     }
 
-    private void addShutdownHookForQueueProcessing() {
+    private void addShutdownHookForQueueProcessing(Path OUTPUT_PATH_DIR) {
         // Add a shutdown hook to process remaining items in the queue
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             writeRemainingQueueToFile();
+            writeNonAnnotatedClassesToFile(OUTPUT_PATH_DIR);
         }));
     }
 
@@ -64,6 +65,19 @@ public class MethodInterceptorVisitor extends ClassVisitor {
             }
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    void writeNonAnnotatedClassesToFile(Path OUTPUT_PATH_DIR) {
+        String output_file_name = OUTPUT_FILE.replace(".csv", "_nonAnnotatedClasses.txt");
+        Path outputFilePath = OUTPUT_PATH_DIR.resolve(output_file_name);
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath.toFile()))) {
+            for (String nonAnnotatedClasseName : Agent.nonAnnotatedClasses) {
+                writer.write(nonAnnotatedClasseName);
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to write non-annotated classes to file: " + e.getMessage());
         }
     }
 
