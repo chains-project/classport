@@ -48,7 +48,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Mojo(name = "embed", defaultPhase = LifecyclePhase.GENERATE_RESOURCES, requiresDependencyResolution = ResolutionScope.TEST)
-@Execute(phase = LifecyclePhase.COMPILE)
+// @Execute(phase = LifecyclePhase.COMPILE)
 public class EmbeddingMojo
         extends AbstractMojo {
     /**
