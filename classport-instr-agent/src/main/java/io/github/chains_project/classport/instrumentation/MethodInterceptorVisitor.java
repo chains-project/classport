@@ -34,6 +34,9 @@ public class MethodInterceptorVisitor extends ClassVisitor {
     private static GZIPOutputStream gzipOutputStream;
     private static FileOutputStream fileOutputStream;
 
+    private static Thread writerThread;
+    private static volatile boolean isShuttingDown = false;
+
     public MethodInterceptorVisitor(ClassVisitor cv, String className, ClassportInfo ann, String OUTPUT_FILE, Path OUTPUT_PATH_DIR) {
         super(Opcodes.ASM9, cv);
         this.className = className;
@@ -63,8 +66,22 @@ public class MethodInterceptorVisitor extends ClassVisitor {
     private void addShutdownHookForQueueProcessing(Path OUTPUT_PATH_DIR) {
         // Add a shutdown hook to process remaining items in the queue
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            writeRemainingQueueToFile();
+            isShuttingDown = true;
+            try {
+                writerThread.join(); // Wait for the writer thread to finish
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            // writeRemainingQueueToFile();
             writeNonAnnotatedClassesToFile(OUTPUT_PATH_DIR);
+
+            try {
+            gzipWriter.close(); // Closes everything in the stream chain
+            fileOutputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }));
     }
 
@@ -98,10 +115,11 @@ public class MethodInterceptorVisitor extends ClassVisitor {
 
     private void initializeQueueWriterThread() {
         // Initialize the queue processing thread
-        Thread writerThread = new Thread(() -> {
+        writerThread = new Thread(() -> {
             try {
                 while (true) {
-                    if (queue.size() >= QUEUE_THRESHOLD) {
+                    if (isShuttingDown && queue.isEmpty()) break;
+                    if (queue.size() >= QUEUE_THRESHOLD || isShuttingDown) {
                         synchronized (queue) {
                             while (!queue.isEmpty()) {
                                 gzipWriter.write(queue.poll() + "\n");
@@ -111,6 +129,7 @@ public class MethodInterceptorVisitor extends ClassVisitor {
                     }
                     Thread.sleep(100); // Avoid busy-waiting
                 }
+               
             } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             }
