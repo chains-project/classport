@@ -22,7 +22,7 @@ import io.github.chains_project.classport.commons.ClassportInfo;
 public class Agent {
     private static final Map<String, ClassportInfo> annotationCache = new ConcurrentHashMap<>();
     private static final String TIMESTAMP = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-    static String OUTPUT_FILE = "_" + TIMESTAMP + ".csv.gz";
+    static String OUTPUT_FILE = "_" + TIMESTAMP + ".csv";
     static Path OUTPUT_PATH_DIR = Paths.get(System.getProperty("user.dir"), "output");
     static List<String> nonAnnotatedClasses = new ArrayList<>();
 

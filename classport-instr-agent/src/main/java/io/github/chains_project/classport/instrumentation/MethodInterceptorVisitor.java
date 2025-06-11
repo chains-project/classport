@@ -8,10 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.io.FileOutputStream;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
-import java.util.zip.GZIPOutputStream;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
@@ -30,13 +26,6 @@ public class MethodInterceptorVisitor extends ClassVisitor {
     private final ClassportInfo ann; 
     static final BlockingQueue<String> queue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);    
 
-    private static BufferedWriter gzipWriter;
-    private static GZIPOutputStream gzipOutputStream;
-    private static FileOutputStream fileOutputStream;
-
-    private static Thread writerThread;
-    private static volatile boolean isShuttingDown = false;
-
     public MethodInterceptorVisitor(ClassVisitor cv, String className, ClassportInfo ann, String OUTPUT_FILE, Path OUTPUT_PATH_DIR) {
         super(Opcodes.ASM9, cv);
         this.className = className;
@@ -47,14 +36,9 @@ public class MethodInterceptorVisitor extends ClassVisitor {
         // Ensure the directory exists
         try {
             Files.createDirectories(OUTPUT_PATH_DIR);
-            fileOutputStream = new FileOutputStream(outputPath.toFile()); 
-            gzipOutputStream = new GZIPOutputStream(fileOutputStream);
-            gzipWriter = new BufferedWriter(new OutputStreamWriter(gzipOutputStream, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new RuntimeException("Failed to create output directory: " + OUTPUT_PATH_DIR, e);
         }
-
-
         // Initialize the CSV file adding the header
         initializeCSVFileHeader();
         // Initialize the queue processing thread to write to the file in batches 
@@ -66,42 +50,26 @@ public class MethodInterceptorVisitor extends ClassVisitor {
     private void addShutdownHookForQueueProcessing(Path OUTPUT_PATH_DIR) {
         // Add a shutdown hook to process remaining items in the queue
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            isShuttingDown = true;
-            try {
-                writerThread.join(); // Wait for the writer thread to finish
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
-            // writeRemainingQueueToFile();
+            writeRemainingQueueToFile();
             writeNonAnnotatedClassesToFile(OUTPUT_PATH_DIR);
-
-            try {
-            gzipWriter.close(); // Closes everything in the stream chain
-            fileOutputStream.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }));
     }
 
     void writeRemainingQueueToFile() {
-        try {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath.toFile(), true))) {
             synchronized (queue) {
                 while (!queue.isEmpty()) {
-                    gzipWriter.write(queue.poll() + "\n");
+                    writer.write(queue.poll() + "\n");
                 }
-                gzipWriter.flush(); // Ensure all remaining data is written
+                writer.flush(); // Ensure all remaining data is written
             }
-            gzipWriter.close();
-            fileOutputStream.close();
         } catch (IOException e) {
             e.printStackTrace();
-        } 
+        }
     }
 
     void writeNonAnnotatedClassesToFile(Path OUTPUT_PATH_DIR) {
-        String output_file_name = OUTPUT_FILE.replace(".csv.gz", "_nonAnnotatedClasses.txt");
+        String output_file_name = OUTPUT_FILE.replace(".csv", "_nonAnnotatedClasses.txt");
         Path outputFilePath = OUTPUT_PATH_DIR.resolve(output_file_name);
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFilePath.toFile()))) {
             for (String nonAnnotatedClasseName : Agent.nonAnnotatedClasses) {
@@ -115,16 +83,15 @@ public class MethodInterceptorVisitor extends ClassVisitor {
 
     private void initializeQueueWriterThread() {
         // Initialize the queue processing thread
-        writerThread = new Thread(() -> {
-            try {
+        Thread writerThread = new Thread(() -> {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath.toFile(), true))) {
                 while (true) {
-                    if (isShuttingDown && queue.isEmpty()) break;
-                    if (queue.size() >= QUEUE_THRESHOLD || isShuttingDown) {
+                    if (queue.size() >= QUEUE_THRESHOLD) {
                         synchronized (queue) {
                             while (!queue.isEmpty()) {
-                                gzipWriter.write(queue.poll() + "\n");
+                                writer.write(queue.poll() + "\n");
                             }
-                            gzipWriter.flush(); // Flush after processing the batch
+                            writer.flush(); // Flush after processing the batch
                         }
                     }
                     Thread.sleep(100); // Avoid busy-waiting
@@ -141,11 +108,11 @@ public class MethodInterceptorVisitor extends ClassVisitor {
 
     private void initializeCSVFileHeader() {
         // Write header to the file if it doesn't exist or is empty
-        try  {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath.toFile(), true))) {
             File file = outputPath.toFile();
             if (file.length() == 0) { 
-                gzipWriter.write("Class,Method,sourceProjectId,isDirect,id,artefact,group,version,childIds\n"); 
-                gzipWriter.flush();
+                writer.write("Class,Method,sourceProjectId,isDirect,id,artefact,group,version,childIds\n"); 
+                writer.flush();
             }
         } catch (IOException e) {
             e.printStackTrace();
