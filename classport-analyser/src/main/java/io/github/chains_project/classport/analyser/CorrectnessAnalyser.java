@@ -24,11 +24,11 @@ import io.github.chains_project.classport.commons.ClassportProject;
 /**
  *
  */
-public class Analyser {
+public class CorrectnessAnalyser {
     // All class files begin with the magic bytes 0xCAFEBABE
     // TODO: Refactor the Maven plugin's JarHelper, put in into classport-commons,
     // and use this from there.
-    private static final byte[] magicBytes = new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE };
+    static final byte[] magicBytes = new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE };
 
     public static HashMap<String, ClassportInfo> getSBOM(JarFile jar) {
         HashMap<String, ClassportInfo> sbom = new HashMap<>();
