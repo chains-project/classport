@@ -49,10 +49,7 @@ public class MethodInterceptorVisitor extends ClassVisitor {
 
     private void addShutdownHookForQueueProcessing(Path OUTPUT_PATH_DIR) {
         // Add a shutdown hook to process remaining items in the queue
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            writeRemainingQueueToFile();
-            writeNonAnnotatedClassesToFile(OUTPUT_PATH_DIR);
-        }));
+        Runtime.getRuntime().addShutdownHook(new Thread(this::writeRemainingQueueToFile));
     }
 
     void writeRemainingQueueToFile() {
