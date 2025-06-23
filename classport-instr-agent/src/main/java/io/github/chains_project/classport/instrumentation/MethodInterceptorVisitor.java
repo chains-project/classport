@@ -45,8 +45,8 @@ public class MethodInterceptorVisitor extends ClassVisitor {
         Runtime.getRuntime().addShutdownHook(new Thread(recordingStrategy::writeToFile));
     }
     
-    public static void addToInvokeLater(String content) {
-        recordingStrategy.addToInvokeLater(content);
+    public static void addToInvokeLater(String className, String methodName, String classportInfo) {
+        recordingStrategy.addToInvokeLater(className, methodName, classportInfo);
     }
 
     @Override
@@ -72,12 +72,24 @@ class MethodInterceptor extends MethodVisitor {
     public void visitCode() {
         super.visitCode();
         // Inject code to add to the queue every time the method is invoked
-        mv.visitLdcInsn(className + "," + methodName + "," + ann.sourceProjectId()  + "," + ann.isDirectDependency() + "," + ann.id() + "," + ann.artefact() + "," + ann.group() + "," + ann.version() + "," + String.join(",", ann.childIds()));
+
+        String classportInfo = ann.sourceProjectId() + "," +
+                ann.isDirectDependency() + "," +
+                ann.id() + "," +
+                ann.artefact() + "," +
+                ann.group() + "," +
+                ann.version() + "," +
+                String.join(",", ann.childIds());
+
+        mv.visitLdcInsn(className);
+        mv.visitLdcInsn(methodName);
+        mv.visitLdcInsn(classportInfo);
+
         mv.visitMethodInsn(Opcodes.INVOKESTATIC,
-                           "io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
-                           "addToInvokeLater",
-                           "(Ljava/lang/String;)V",
-                           false);
+                "io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
+                "addToInvokeLater",
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                false);
     }
 }
 
