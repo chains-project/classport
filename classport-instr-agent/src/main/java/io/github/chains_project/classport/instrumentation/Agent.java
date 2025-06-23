@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import io.github.chains_project.classport.instrumentation.granularity.Granularity;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -25,6 +26,7 @@ public class Agent {
     static String OUTPUT_FILE = "_" + TIMESTAMP + ".csv";
     static Path OUTPUT_PATH_DIR = Paths.get(System.getProperty("user.dir"), "output");
     static List<String> nonAnnotatedClasses = new ArrayList<>();
+    static Granularity granularity = Granularity.METHOD; // Default
 
 
 
@@ -39,7 +41,10 @@ public class Agent {
                 OUTPUT_PATH_DIR = Paths.get(args[1]);
             } else {
                 OUTPUT_PATH_DIR = Paths.get(System.getProperty("user.dir"), "output");
-            }            
+            }
+            if (args.length > 2) {
+                granularity = Granularity.fromString(args[2].toUpperCase());
+            }
             System.out.println("Output file: " + OUTPUT_FILE);
             System.out.println("Output path: " + OUTPUT_PATH_DIR);
             System.err.println("Not annotated classes will be saved in " + OUTPUT_FILE.replace(".csv", "_nonAnnotatedClasses.txt"));
@@ -61,7 +66,7 @@ public class Agent {
             try {
                 ClassportInfo annotationInfo = getAnnotationInfo(className, classfileBuffer);
                 if (annotationInfo != null) {
-                    return applyTransformations(classfileBuffer, className, annotationInfo);
+                    return applyTransformations(classfileBuffer, className, annotationInfo, granularity);
                 } 
                 else {
                     nonAnnotatedClasses.add(className); 
@@ -76,10 +81,10 @@ public class Agent {
             return annotationCache.computeIfAbsent(className, key -> AnnotationReader.getAnnotationValues(classfileBuffer));
         }
 
-        public byte[] applyTransformations(byte[] classfileBuffer, String className, ClassportInfo annotationInfo) {
+        public byte[] applyTransformations(byte[] classfileBuffer, String className, ClassportInfo annotationInfo, Granularity granularity) {
             ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
             ClassReader reader = new ClassReader(classfileBuffer);
-            ClassVisitor visitor = new MethodInterceptorVisitor(writer, className, annotationInfo, OUTPUT_FILE, OUTPUT_PATH_DIR);
+            ClassVisitor visitor = new MethodInterceptorVisitor(writer, className, annotationInfo, OUTPUT_FILE, OUTPUT_PATH_DIR, granularity);
             reader.accept(visitor, 0);
             return writer.toByteArray();
         }
