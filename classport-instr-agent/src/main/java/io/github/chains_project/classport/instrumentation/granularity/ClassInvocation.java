@@ -1,15 +1,14 @@
 package io.github.chains_project.classport.instrumentation.granularity;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashSet;
+import java.nio.file.StandardOpenOption;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ClassInvocation implements RecordingStrategy {
-	private final LinkedHashSet<String> set = new LinkedHashSet<>();
+	private final Set<String> set = new HashSet<>();
 	private final Path outputPath;
 
 	public ClassInvocation(Path outputPath) {
@@ -17,7 +16,7 @@ public class ClassInvocation implements RecordingStrategy {
 	}
 
 	@Override
-	public void addToInvokeLater (String content) {
+	public void addToInvokeLater(String content) {
 		set.add(content);
 	}
 
@@ -29,7 +28,7 @@ public class ClassInvocation implements RecordingStrategy {
 	@Override
 	public void writeToFile() {
 		try {
-			Files.write(outputPath, set);
+			Files.write(outputPath, set, StandardOpenOption.APPEND);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

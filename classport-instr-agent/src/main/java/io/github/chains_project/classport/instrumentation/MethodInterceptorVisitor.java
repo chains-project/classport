@@ -1,84 +1,69 @@
 package io.github.chains_project.classport.instrumentation;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import io.github.chains_project.classport.instrumentation.granularity.ClassInvocation;
-import io.github.chains_project.classport.instrumentation.granularity.Granularity;
-import io.github.chains_project.classport.instrumentation.granularity.MethodInvocation;
+import io.github.chains_project.classport.commons.ClassportInfo;
 import io.github.chains_project.classport.instrumentation.granularity.RecordingStrategy;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
-import io.github.chains_project.classport.commons.ClassportInfo;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class MethodInterceptorVisitor extends ClassVisitor {
-    private static RecordingStrategy recordingStrategy;
-    private final String className;
-    private final ClassportInfo ann; 
+	private static RecordingStrategy recordingStrategy;
+	private final String className;
+	private final ClassportInfo ann;
 
-    public MethodInterceptorVisitor(ClassVisitor cv, String className, ClassportInfo ann, String outputFileName, Path outputDir, Granularity granularity) {
-        super(Opcodes.ASM9, cv);
-        this.className = className;
-        this.ann = ann;
+	public MethodInterceptorVisitor(ClassVisitor cv, String className, ClassportInfo ann, Path outputDir, RecordingStrategy recordingStrategy) {
+		super(Opcodes.ASM9, cv);
+		this.className = className;
+		this.ann = ann;
 
-        try {
-            Files.createDirectories(outputDir);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create output directory: " + outputDir, e);
-        }
+		MethodInterceptorVisitor.recordingStrategy = recordingStrategy;
+		MethodInterceptorVisitor.recordingStrategy.initializeBackgroundWriter();
 
-        Path outputPath = outputDir.resolve(outputFileName);
+		try {
+			Files.createDirectories(outputDir);
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to create output directory: " + outputDir, e);
+		}
+	}
 
-        recordingStrategy = switch (granularity) {
-            case CLASS -> new ClassInvocation(outputPath);
-            case METHOD -> new MethodInvocation(outputPath);
-        };
-        recordingStrategy.initializeCSVHeader(outputPath);
-        recordingStrategy.initializeBackgroundWriter();
-        // Add a shutdown hook to process remaining items in the queue
-        Runtime.getRuntime().addShutdownHook(new Thread(recordingStrategy::writeToFile));
-    }
-    
-    public static void addToInvokeLater(String content) {
-        recordingStrategy.addToInvokeLater(content);
-    }
+	public static void addToInvokeLater(String content) {
+		recordingStrategy.addToInvokeLater(content);
+	}
 
-    @Override
-    public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-        return new MethodInterceptor(mv, name, className, ann);
-    }
+	@Override
+	public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+		MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+		return new MethodInterceptor(mv, name, className, ann);
+	}
 }
 
 class MethodInterceptor extends MethodVisitor {
-    private final String methodName;
-    private final String className;
-    private final ClassportInfo ann;
+	private final String methodName;
+	private final String className;
+	private final ClassportInfo ann;
 
-    public MethodInterceptor(MethodVisitor mv, String methodName, String className, ClassportInfo ann) {
-        super(Opcodes.ASM9, mv);
-        this.methodName = methodName;
-        this.className = className;
-        this.ann = ann;
-    }
+	public MethodInterceptor(MethodVisitor mv, String methodName, String className, ClassportInfo ann) {
+		super(Opcodes.ASM9, mv);
+		this.methodName = methodName;
+		this.className = className;
+		this.ann = ann;
+	}
 
-    @Override
-    public void visitCode() {
-        super.visitCode();
-        // Inject code to add to the queue every time the method is invoked
-        mv.visitLdcInsn(className + "," + methodName + "," + ann.sourceProjectId()  + "," + ann.isDirectDependency() + "," + ann.id() + "," + ann.artefact() + "," + ann.group() + "," + ann.version() + "," + String.join(",", ann.childIds()));
-        mv.visitMethodInsn(Opcodes.INVOKESTATIC,
-                           "io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
-                           "addToInvokeLater",
-                           "(Ljava/lang/String;)V",
-                           false);
-    }
+	@Override
+	public void visitCode() {
+		super.visitCode();
+		// Inject code to add to the queue every time the method is invoked
+		mv.visitLdcInsn(ann.group() + "," + ann.artefact() + "," + ann.version());
+		mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+				"io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
+				"addToInvokeLater",
+				"(Ljava/lang/String;)V",
+				false);
+	}
 }
 
 
