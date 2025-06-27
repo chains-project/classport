@@ -37,32 +37,7 @@ public class MethodInterceptorVisitor extends ClassVisitor {
 	@Override
 	public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
 		MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-		return new MethodInterceptor(mv, name, className, ann);
-	}
-}
-
-class MethodInterceptor extends MethodVisitor {
-	private final String methodName;
-	private final String className;
-	private final ClassportInfo ann;
-
-	public MethodInterceptor(MethodVisitor mv, String methodName, String className, ClassportInfo ann) {
-		super(Opcodes.ASM9, mv);
-		this.methodName = methodName;
-		this.className = className;
-		this.ann = ann;
-	}
-
-	@Override
-	public void visitCode() {
-		super.visitCode();
-		// Inject code to add to the queue every time the method is invoked
-		mv.visitLdcInsn(ann.group() + "," + ann.artefact() + "," + ann.version());
-		mv.visitMethodInsn(Opcodes.INVOKESTATIC,
-				"io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
-				"addToInvokeLater",
-				"(Ljava/lang/String;)V",
-				false);
+		return recordingStrategy.startVisitor(mv, name, className, ann);
 	}
 }
 

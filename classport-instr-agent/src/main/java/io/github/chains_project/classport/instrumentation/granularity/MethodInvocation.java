@@ -1,5 +1,9 @@
 package io.github.chains_project.classport.instrumentation.granularity;
 
+import io.github.chains_project.classport.commons.ClassportInfo;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -24,7 +28,7 @@ public class MethodInvocation implements RecordingStrategy {
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath.toFile(), true))) {
 			File file = outputPath.toFile();
 			if (file.length() == 0) {
-				writer.write("Class,Method,sourceProjectId,isDirect,id,artefact,group,version,childIds\n");
+				writer.write("Class,Method,group,artefact,version\n");
 				writer.flush();
 			}
 		} catch (IOException e) {
@@ -74,4 +78,34 @@ public class MethodInvocation implements RecordingStrategy {
 			e.printStackTrace();
 		}
 	}
+
+	@Override
+	public MethodVisitor startVisitor(MethodVisitor mv, String methodName, String className, ClassportInfo ann) {
+		return new MethodInterceptor(mv, methodName, className, ann);
+	}
 }
+
+	class MethodInterceptor extends MethodVisitor {
+		private final String methodName;
+		private final String className;
+		private final ClassportInfo ann;
+
+		public MethodInterceptor(MethodVisitor mv, String methodName, String className, ClassportInfo ann) {
+			super(Opcodes.ASM9, mv);
+			this.methodName = methodName;
+			this.className = className;
+			this.ann = ann;
+		}
+
+		@Override
+		public void visitCode() {
+			super.visitCode();
+			// Inject code to add to the queue every time the method is invoked
+			mv.visitLdcInsn(className + "," + methodName + "," + ann.group() + "," + ann.artefact() + "," + ann.version());
+			mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+					"io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
+					"addToInvokeLater",
+					"(Ljava/lang/String;)V",
+					false);
+		}
+	}
