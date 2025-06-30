@@ -1,7 +1,7 @@
 package io.github.chains_project.classport.instrumentation.granularity;
 
 public enum Granularity {
-	CLASS,
+	DEPENDENCY,
 	METHOD;
 
 	public static Granularity fromString(String mode) {

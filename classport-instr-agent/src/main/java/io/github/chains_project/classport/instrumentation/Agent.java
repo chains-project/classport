@@ -2,7 +2,7 @@ package io.github.chains_project.classport.instrumentation;
 
 import io.github.chains_project.classport.commons.AnnotationReader;
 import io.github.chains_project.classport.commons.ClassportInfo;
-import io.github.chains_project.classport.instrumentation.granularity.ClassInvocation;
+import io.github.chains_project.classport.instrumentation.granularity.DependencyInvocation;
 import io.github.chains_project.classport.instrumentation.granularity.Granularity;
 import io.github.chains_project.classport.instrumentation.granularity.MethodInvocation;
 import io.github.chains_project.classport.instrumentation.granularity.RecordingStrategy;
@@ -52,7 +52,7 @@ public class Agent {
 			Path outputPath = OUTPUT_PATH_DIR.resolve(OUTPUT_FILE);
 
 			recordingStrategy = switch (granularity) {
-				case CLASS -> new ClassInvocation(outputPath);
+				case DEPENDENCY -> new DependencyInvocation(outputPath);
 				case METHOD -> new MethodInvocation(outputPath);
 			};
 			recordingStrategy.initializeCSVHeader(outputPath);

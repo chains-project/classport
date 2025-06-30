@@ -14,11 +14,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.Set;
 
-public class ClassInvocation implements RecordingStrategy {
+public class DependencyInvocation implements RecordingStrategy {
 	private final Set<String> set = new HashSet<>();
 	private final Path outputPath;
 
-	public ClassInvocation(Path outputPath) {
+	public DependencyInvocation(Path outputPath) {
 		this.outputPath = outputPath;
 	}
 
@@ -58,20 +58,16 @@ public class ClassInvocation implements RecordingStrategy {
 	@Override
 	public MethodVisitor startVisitor(MethodVisitor mv, String methodName, String className, ClassportInfo ann) {
 		// No specific visitor logic for class-level invocation
-		return new ClassInterceptor(mv, methodName, className, ann);
+		return new LogDependency(mv, ann);
 
 	}
 }
 
-class ClassInterceptor extends MethodVisitor {
-	private final String methodName;
-	private final String className;
+class LogDependency extends MethodVisitor {
 	private final ClassportInfo ann;
 
-	public ClassInterceptor(MethodVisitor mv, String methodName, String className, ClassportInfo ann) {
+	public LogDependency(MethodVisitor mv, ClassportInfo ann) {
 		super(Opcodes.ASM9, mv);
-		this.methodName = methodName;
-		this.className = className;
 		this.ann = ann;
 	}
 
