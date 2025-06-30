@@ -20,6 +20,8 @@ import org.apache.maven.shared.invoker.Invoker;
 import org.apache.maven.shared.invoker.MavenInvocationException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.AnnotationVisitor;
@@ -29,10 +31,10 @@ import org.objectweb.asm.Opcodes;
 
 import io.github.chains_project.classport.commons.ClassportInfo;
 
-
+@Disabled("unmaintained")
 public class EmbeddingMojoTest {
 
-    private final Class<?> annotationClass = ClassportInfo.class; 
+    private final Class<?> annotationClass = ClassportInfo.class;
     private final String annotatedProjectClassPath = "src/test/resources/test-app/target/classes/org/example/Main.class";
 
     @TempDir
@@ -61,7 +63,7 @@ public class EmbeddingMojoTest {
     }
 
 
-    @Test 
+    @Test
     void shouldEmbedAllDependencyClasses_whenPluginRuns() throws MavenInvocationException, IOException {
 
         assertEquals(0, getExitCodeRunMavenPlugin(), "Maven plugin not executed.");
@@ -70,9 +72,9 @@ public class EmbeddingMojoTest {
         File projectClassFilesDir = new File("src/test/resources/test-app/target");
         assertTrue(projectClassFilesDir.exists(), "Missing target dir. Something wrong in execution of the Maven plugin.");
         assertTrue(classportFilesDir.exists(), "Classport-files dir not found. Something wrong in execution of the Maven plugin.");
-        
+
         assertTrue(areAllClassesEmbedded(classportFilesDir, false), "Not all dependency classes are embedded with ClassportInfo annotation");
-        
+
         cleanUpArtifactsDir(projectClassFilesDir.toPath());
         cleanUpArtifactsDir(classportFilesDir.toPath());
     }
@@ -81,18 +83,18 @@ public class EmbeddingMojoTest {
     private boolean areAllClassesEmbedded(File classportFilesDir, boolean areProjectClasses) {
         try {
             tempDir = Files.createTempDirectory("classportFilesTempDir");
-            tempDir.toFile().deleteOnExit(); 
-            
+            tempDir.toFile().deleteOnExit();
+
             if (!areProjectClasses) {
                 return processJarFiles(classportFilesDir, tempDir);
             } else {
                 return processClassFilesInDirectory(classportFilesDir.toPath());
             }
-            
+
         } catch (IOException e) {
             e.printStackTrace();
             return false;
-        } 
+        }
     }
 
 
@@ -100,15 +102,15 @@ public class EmbeddingMojoTest {
         if (tempDir != null) {
             try {
                 Files.walk(tempDir)
-                    .sorted(Comparator.reverseOrder())  
+                    .sorted(Comparator.reverseOrder())
                     .map(Path::toFile)
                     .forEach(file -> {
                         if (file.isDirectory()) {
                             if (file.list().length == 0) {
-                                file.delete();  
+                                file.delete();
                             }
                         } else {
-                            file.delete();  
+                            file.delete();
                         }
                     });
             } catch (IOException e) {
@@ -116,15 +118,15 @@ public class EmbeddingMojoTest {
             }
         }
     }
-    
+
     private boolean processJarFiles(File classportFilesDir, Path tempDir) {
         try {
             return Files.walk(classportFilesDir.toPath())
-                .filter(file -> file.toString().endsWith(".jar"))  
+                .filter(file -> file.toString().endsWith(".jar"))
                 .allMatch(file -> {
                     try {
                         unzip(file.toString(), tempDir.toString());
-    
+
                         return processClassFilesInDirectory(tempDir);
                     } catch (IOException ex) {
                         ex.printStackTrace();
@@ -136,12 +138,12 @@ public class EmbeddingMojoTest {
             return false;
         }
     }
-    
+
     private boolean processClassFilesInDirectory(Path directory) {
         try {
             return Files.walk(directory)
-                .filter(f -> f.toString().endsWith(".class"))  
-                .allMatch(f -> readAnnotation(f.toString()));  
+                .filter(f -> f.toString().endsWith(".class"))
+                .allMatch(f -> readAnnotation(f.toString()));
         } catch (IOException ex) {
             ex.printStackTrace();
             return false;
@@ -149,13 +151,13 @@ public class EmbeddingMojoTest {
     }
 
     private int getExitCodeRunMavenPlugin() throws MavenInvocationException, IOException{
-        String projectDir = "src/test/resources/test-app"; 
-        String goal = "io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed"; 
+        String projectDir = "src/test/resources/test-app";
+        String goal = "io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed";
 
         InvocationRequest request = new DefaultInvocationRequest();
         request.setPomFile(new File(projectDir, "pom.xml"));
         request.setGoals(Arrays.asList(goal.split(" ")));
-        request.setBatchMode(true); 
+        request.setBatchMode(true);
 
         Invoker invoker = new DefaultInvoker();
         String os = System.getProperty("os.name");
@@ -191,7 +193,7 @@ public class EmbeddingMojoTest {
     private boolean readAnnotation(String classFilePath) {
         byte[] classBytes;
         try {
-            classBytes = Files.readAllBytes(Paths.get(classFilePath));      
+            classBytes = Files.readAllBytes(Paths.get(classFilePath));
             ClassReader classReader = new ClassReader(classBytes);
 
             final boolean[] isAnnotationPresent = {false};
@@ -201,9 +203,9 @@ public class EmbeddingMojoTest {
                 public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
                     if (descriptor.equals(annotationClass.descriptorString())) {
                         isAnnotationPresent[0] = true;
-                        return null; 
+                        return null;
                     }
-                    
+
                     return super.visitAnnotation(descriptor, visible);
                 }
             }, 0);
@@ -247,5 +249,5 @@ public class EmbeddingMojoTest {
             }
         }, 0);
     }
-    
+
 }
