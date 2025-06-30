@@ -15,7 +15,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class DependencyInvocation implements RecordingStrategy {
-	private final Set<String> set = new HashSet<>();
+	static final Set<String> set = new HashSet<>();
 	private final Path outputPath;
 
 	public DependencyInvocation(Path outputPath) {
@@ -75,7 +75,11 @@ class LogDependency extends MethodVisitor {
 	public void visitCode() {
 		super.visitCode();
 		// Inject code to add to the queue every time the method is invoked
-		mv.visitLdcInsn(ann.group() + "," + ann.artefact() + "," + ann.version());
+		String content = ann.group() + "," + ann.artefact() + "," + ann.version();
+		if (DependencyInvocation.set.contains(content)) {
+			return;
+		}
+		mv.visitLdcInsn(content);
 		mv.visitMethodInsn(Opcodes.INVOKESTATIC,
 				"io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
 				"addToInvokeLater",

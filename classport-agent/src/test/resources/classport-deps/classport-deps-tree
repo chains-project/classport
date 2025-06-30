@@ -1,3 +1,0 @@
-com.example:test-agent-app:jar:1.0-SNAPSHOT
-+- com.google.code.gson:gson:jar:2.11.0
-\- org.apache.commons:commons-lang3:jar:3.17.0

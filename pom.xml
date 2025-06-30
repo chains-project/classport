@@ -34,7 +34,6 @@
   <modules>
     <module>classport-commons</module>
     <module>maven-plugin</module>
-    <module>classport-agent</module>
     <module>classport-analyser</module>
       <module>classport-introspection</module>
     <module>classport-instr-agent</module>
