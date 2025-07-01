@@ -85,7 +85,13 @@ mvn package -Dmaven.repo.local=classport-files -DskipTests
 
 # Introspect
 mkdir output
-java -javaagent:../../classport-instr-agent/target/classport-instr-agent-0.1.0-SNAPSHOT.jar=test,./output,dependency -jar target/original-test-agent-app-1.0-SNAPSHOT.jar
+java -javaagent:../../classport-instr-agent/target/classport-instr-agent-0.1.0-SNAPSHOT.jar=test,./output,dependency -jar target/test-agent-app-1.0-SNAPSHOT.jar
 ```
 In the output folder there will be the csv file with the resulting detected runtime dependencies.
 
+This is the expected output.
+```
+group,artefact,version
+org.apache.commons,commons-lang3,3.17.0
+com.example,test-agent-app,1.0-SNAPSHOT
+```
