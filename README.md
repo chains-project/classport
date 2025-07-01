@@ -1,5 +1,9 @@
 <div align="center">
 <img src="resources/imgs/classport-logo.png" width="200">
+
+![CI](https://github.com/chains-project/classport/actions/workflows/tests.yml/badge.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 </div>
 
 # Classport
