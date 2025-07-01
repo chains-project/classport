@@ -1,27 +1,27 @@
-# Agent using Instrumentation API
-This Agent uses Instrumentation API to instrument the loaded classes.
+# Classport Introspector
+This module implements the **Classport Introspector**, a Java agent that performs **runtime dependency introspection**.  
+It extracts build-time dependency metadata (GAV: Group, Artifact, Version) embedded in `.class` files using the [Classport Embedder](../maven-plugin/), and records which dependencies are actually used **during execution**.
 
-It can intercept the methods actually used in an application and create CSV files with information related to the method's name, declaring class, and all the information related to the dependency it belongs to, such as the GAV and the parent and child dependencies.
 
 ## How it works
-1. The Java Agent intercepts the loading class
-2. It ignores it if it is not annotated (TODO: can we infer something?). If it is, it starts processing it.
-3. The `MethodInterceptorVisitor` class is used to visit and process the bytecode of loaded classes.
-4. For each method in the class, the `MethodInterceptor` injects a custom bytecode at the beginning of the method.
-5. The injected code constructs a string containing:
-   - The class name
-   - The method name
-   - Dependency metadata, including GAV (Group, Artifact, Version), parent/child dependencies, and project ID.
 
-    It passes this metadata to a static `addToQueue` method, which stores it in a queue.
-6. This queue is periodically flushed and the information is written to a CSV file.
+1. **Agent Attachment**: The Introspector is attached to the JVM using the `-javaagent` option.
+2. **Instrumentation**: It instruments the **methods** of application classes at load time.
+3. **Annotation Extraction**: When an instrumented method executes, the agent extracts the `@ClassportInfo` annotation from the class.
+4. **Efficient Tracking**: To reduce overhead:
+   - Each dependency (GAV) is recorded **only once**.
+   - Once a class’s GAV is seen, its future methods are **excluded** from instrumentation.
+5. **Shutdown Hook**: On JVM termination, the final list of used dependencies is written to a CSV file.
 
-## How to use it
 
-After packaging the program:
+## Usage
+
+After embedding:
 
 ```console
-java -javaagent:<path-to-agent-jar>=[<name-of-the-project>,<location-path>] -jar <path-to-app-to-be-analyzed> [options related to the analyzing app]
+java -javaagent:<path-to-agent-jar>=<name-of-the-project>,<output-location-path>,dependency -jar <path-to-app-jar-to-be-analyzed> [options related to the analyzing app]
 ```
 
-An `output.csv`file is created into the folder.
+Note: ensure that the output folder exists before running the command.
+
+A CSV file with the list of runtime dependencies is created into the folder.
