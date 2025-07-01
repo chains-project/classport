@@ -1,145 +1,91 @@
+<div align="center">
+<img src="resources/imgs/classport-logo.png" width="200">
+</div>
+
 # Classport
 
-**Classport** is a tool to enable accurate runtime inspection of the supply chain in Maven Java programs. 
+**Classport** is a *passport for Java classes*.
 
-Classport's main objective is to make software supply chain information available at runtime.
+It is a JVM instrumentation agent and Maven plugin that embeds and retrieves dependency metadata (GAV: Group, Artifact, Version) directly from Java `.class` files. It enables runtime introspection of runtime dependencies in Java.
 
-To reach this goal it:
 
-* **Embeds** supply chain metadata in each class file that is to be part of the application during build time.
-* **Monitors** the class loaded by the running application and **extracts** the embedded Software Supply Chain information from the loaded classes. 
-
-In this way, Classport is able to accurately connect the loaded classes to their corresponding upstream dependencies and build a runtime representation of the application’s code-related supply chain.
 
 See [The Embedding and Retrieval of Software Supply Chain Information in Java Applications (Master's thesis Daniel Williams, KTH, 2024)](https://kth.diva-portal.org/smash/record.jsf?dswid=7855&pid=diva2%3A1905606&c=1&searchType=SIMPLE&language=en&query=The+Embedding+and+Retrieval+of+Software+Supply+Chain+Information+in+Java+Applications&af=%5B%5D&aq=%5B%5B%5D%5D&aq2=%5B%5B%5D%5D&aqe=%5B%5D&noOfRows=50&sortOrder=author_sort_asc&sortOrder2=title_sort_asc&onlyFullText=false&sf=all)
 
+## 🎯 Motivation
 
-## Structure
+Java applications often rely on third-party libraries via Maven, but all dependency metadata is lost once the application is packaged and deployed. This creates blind spots for:
+- Vulnerability scanners
+- Runtime permission enforcement
 
-![classport overview](./resources/imgs/classport-overview.png)
+🧩 **Classport solves this by preserving dependency origin metadata all the way to runtime.**
 
-The picture gives an overview of the structure of Classport. The structure is divided into two phases: **Embedding phase** and **Extracting Phase**.
 
-### Embedding Phase
+## 🚀 Key Features
 
-The inputs of this phase are the dependency JARs and the project source files.
-The embedder is responsible for embedding the supply chain information in the form of Java Annotations into the class files.
-This feature is implemented by the Maven plugin that
-modifies the JAR files during the build process and is contained in the `classport.commons` module.
+- 🔍 Embeds Maven GAV coordinates as runtime-visible annotations into compiled `.class` files.
+- 🎯 Retrieves this metadata at runtime using a lightweight Java agent.
+- 🧪 Compatible with real-world projects and benchmarks (see [`classport-experiments`](https://github.com/chains-project/classport-experiments)).
 
-The embedded class files can be packaged together with the application, or just added to the classpath in place of the "regular" versions of the class files. 
-### Extracting Phase
+## ⚙️ How It Works
 
-This is the phase in which the supply chain information is extracted. 
+Classport has two components:
 
-At the moment, the repository contains 3 versions that implement this phase: Java, C and Rust.
+| Component    | Description |
+|--------------|-------------|
+| 🧵 [**Embedder**](./maven-plugin/)  | A Maven plugin that injects GAV metadata as Java annotations into every `.class` file. |
+| 🕵️ [**Introspector**](./classport-instr-agent/) | A Java agent that dynamically inspects dependencies at runtime to retrieve their GAV info. |
 
-#### Java
-The Java version allows both static and dynamic analysis
-It can be done dynamically or statically.
+![classport overview](./resources/imgs/classport.png)
 
-The `classport.agent`
-package contains a Java agent that can be run alongside the Classport-ified JAR.
-This agent logs all the supply-chain data for classes that **get loaded**,
-and prints a dependency tree from these at the end. This way, the dependency tree
-will consist of only those dependencies that were actually used at runtime.
+## 🛠️ Getting Started
+### Requirements
+* Java 17+
+* Maven 3.8+
 
-The `classport.analyser` package contains two tools for statically analysing
-and modifying JAR files.
+### Setup
+Clone and install the project.
 
-#### Rust 
-This version can detect the dependencies that are **executed** at runtime with a method granularity.
-
-#### C
-Same as Rust. In progress, not available now.
-
-## Usage
-
-Package all the modules. From the root of the Classport project:
-
-```console 
-mvn install
+```bash
+git clone git@github.com:chains-project/classport.git
+cd classport
+mvn clean install -DskipTests
 ```
 
-### Embedding (same for all the versions)
+### How to use
 
-Use the Maven plugin to embed supply chain information into the class files of the project using the `embed` goal. From the root directory of the analysed Maven project:
+In order to achieve runtime dependencies introspection with classport, you have to first embedd and then to run the instrospector together with you application.
 
-```console
-mvn io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
+1. Embed
+Inside the target project folder.
+```bash
+mvn compile io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
+mvn package -Dmaven.repo.local=classport-files -DskipTests
 ```
-The `embed` goal of the Maven plugin retrieves a list of project dependencies and their corresponding JAR files, embeds the annotation into all class files within each JAR, and recreates what can be seen as a dependency-only Maven local repository in the `classport-files` directory.
+Note: if the project has more than one module, it is required to merge all the `classport-files` folders and use this as a Maven local repo during the packaging phase. 
 
-The JAR files from within there can then be included in the class path with the `-cp` flag as per usual.
-
-For projects that get packaged into an Uber-JAR:
-
-```console
-mvn package -Dmaven.repo.local=classport-files
+2. Introspect
+```bash
+java -javaagent:<path-to-classport-agent-jar>=<name-of-the-project>,<path-to-output-dir>,dependency -jar <path-to-jar-of-the-target-app> [optional-args-of-the-target-app]
 ```
+Note:
+- `name-of-the-project` can be any name and it is used to build the name of the output file.
+- `path-to-output-dir` must be a path of an existing folder
 
-For multi-module projects, package each project separately as dependency properties
-may differ (e.g. a direct dependency for one module is a transitive one for another).
+### Example of usage
+Run the following command from the root folder of Classport
 
-### Extraction
-### Java 
-#### Dynamic analysis
-Use the agent to detect the used classes:
+```bash
+cd resources/simple-app-monitoring
+mvn clean
 
-```console
-java -javaagent:<path-to-agent-jar> -jar <path-to-app-jar>
+# Embed
+mvn compile io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
+mvn package -Dmaven.repo.local=classport-files -DskipTests
+
+# Introspect
+mkdir output
+java -javaagent:../../classport-instr-agent/target/classport-instr-agent-0.1.0-SNAPSHOT.jar=test,./output,dependency -jar target/original-test-agent-app-1.0-SNAPSHOT.jar
 ```
+In the output folder there will be the csv file with the resulting detected runtime dependencies.
 
-This command outputs the **runtime representation** of the software supply chain of the analysed project:
-- `classport-deps-list` --> flat list of dependencies
-- `classport-deps-tree` --> tree of dependnecies
-
-#### Static analysis
-
-This is the command to perform static analysis:
-```console
-java -jar <path-to-analyzer-jar> -<printList|printTree|generateTestJar> <jarFile> [classes-to-be-ignored]
-```
-
-The available flags are:
-* `-printList`, for statically generating a flat list of dependencies. Below is an example of the command output on a simple Java application with only one dependency.
-
-```
-org.apache.commons:commons-lang3:jar:3.17.0
-```
-* `-printTree`, for staticaly generating a dependencies tree. Below is an example of the command output on a simple Java application with only one dependency.
-
-```
-org.example:hello:jar:0.1.0
-\- org.apache.commons:commons-lang3:jar:3.17.0
-```
-
-* `-generateTestJar`, for generating a JAR file where the main class has been modified to force-load classes from all dependencies.
-
-
-### Rust
-- compile the project:
-
-`cargo build --release`
-
-- run the agent:
-
-`java -agentpath:/path/to/target/release/libmy_java_agent.dylib -jar your_app.jar`
-
-[For detailed info](./cargo_agent/cargo_agent/README.md) 
-
-### C
-WIP
-
-### Instrumentation API
-
-- run the agent:
-
-`java -javaagent:<path-to-agent-jar> -jar <path-to-app-to-be-analyzed> [options related to the analyzing app]`
-
-## Requirements
-
-* Maven 
-* Java >= 17
-* Rust latest
-* Bindgen 0.71.0 (see also [requirements](https://rust-lang.github.io/rust-bindgen/requirements.html) for bindgen)
