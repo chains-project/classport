@@ -18,141 +18,169 @@ import org.apache.maven.shared.invoker.InvocationRequest;
 import org.apache.maven.shared.invoker.InvocationResult;
 import org.apache.maven.shared.invoker.Invoker;
 import org.apache.maven.shared.invoker.MavenInvocationException;
+import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import io.github.chains_project.classport.commons.ClassportInfo;
 
-@Disabled("unmaintained")
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class EmbeddingMojoTest {
 
-    private final Class<?> annotationClass = ClassportInfo.class;
-    private final String annotatedProjectClassPath = "src/test/resources/test-app/target/classes/org/example/Main.class";
+    private static final Class<?> annotationClass = ClassportInfo.class;
+    private static final Path annotatedProjectClassPath =
+        Paths.get("src/test/resources/test-app/target/classes/org/example/Main.class");
+    private static final File projectClassFilesDir =
+        new File("src/test/resources/test-app/target");
+    private static final File classportFilesDir =
+        new File("src/test/resources/test-app/classport-files");
 
     @TempDir
     Path tempDir;
 
-    @Test
-    void shouldEmbedAllProjectClasses_whenPluginRuns() throws MavenInvocationException, IOException {
-
+    @BeforeAll
+    void runPlugin() throws MavenInvocationException {
         assertEquals(0, getExitCodeRunMavenPlugin(), "Maven plugin not executed.");
+    }
 
-        File projectClassFilesDir = new File("src/test/resources/test-app/target");
-        File classportFilesDir = new File("src/test/resources/test-app/classport-files");
-        assertTrue(projectClassFilesDir.exists(), "Missing target dir. Something wrong in execution of the Maven plugin.");
-        assertTrue(classportFilesDir.exists(), "Classport-files dir not found. Something wrong in execution of the Maven plugin.");
+    @AfterAll
+    void cleanUp() {
+        cleanUpArtifactsDir(projectClassFilesDir.toPath());
+        cleanUpArtifactsDir(classportFilesDir.toPath());
+    }
 
-        assertTrue(areAllClassesEmbedded(projectClassFilesDir, true), "Not all project classes are embedded with ClassportInfo annotation");
+    @Test
+    void shouldEmbedAllProjectClasses_whenPluginRuns() throws IOException {
+        assertTrue(projectClassFilesDir.exists(), "Missing target dir.");
+        assertTrue(classportFilesDir.exists(), "classport-files dir not found.");
+
+        assertTrue(areAllClassesEmbedded(projectClassFilesDir, true),
+            "Not all project classes are embedded with ClassportInfo annotation");
+
         checkAnnotationValues(
             "org.example",
             "0.1.0",
             "org.example:hello:jar:0.1.0",
             "hello"
         );
-
-        cleanUpArtifactsDir(projectClassFilesDir.toPath());
-        cleanUpArtifactsDir(classportFilesDir.toPath());
     }
-
 
     @Test
-    void shouldEmbedAllDependencyClasses_whenPluginRuns() throws MavenInvocationException, IOException {
+    void shouldEmbedAllDependencyClasses_whenPluginRuns() {
+        assertTrue(projectClassFilesDir.exists(), "Missing target dir.");
+        assertTrue(classportFilesDir.exists(), "classport-files dir not found.");
 
-        assertEquals(0, getExitCodeRunMavenPlugin(), "Maven plugin not executed.");
-
-        File classportFilesDir = new File("src/test/resources/test-app/classport-files");
-        File projectClassFilesDir = new File("src/test/resources/test-app/target");
-        assertTrue(projectClassFilesDir.exists(), "Missing target dir. Something wrong in execution of the Maven plugin.");
-        assertTrue(classportFilesDir.exists(), "Classport-files dir not found. Something wrong in execution of the Maven plugin.");
-
-        assertTrue(areAllClassesEmbedded(classportFilesDir, false), "Not all dependency classes are embedded with ClassportInfo annotation");
-
-        cleanUpArtifactsDir(projectClassFilesDir.toPath());
-        cleanUpArtifactsDir(classportFilesDir.toPath());
+        assertTrue(areAllClassesEmbedded(classportFilesDir, false),
+            "Not all dependency classes are embedded with ClassportInfo annotation");
     }
 
-
-    private boolean areAllClassesEmbedded(File classportFilesDir, boolean areProjectClasses) {
+    private boolean areAllClassesEmbedded(File baseDir, boolean areProjectClasses) {
         try {
-            tempDir = Files.createTempDirectory("classportFilesTempDir");
-            tempDir.toFile().deleteOnExit();
-
             if (!areProjectClasses) {
-                return processJarFiles(classportFilesDir, tempDir);
+                return processJarFiles(baseDir.toPath(), tempDir);
             } else {
-                return processClassFilesInDirectory(classportFilesDir.toPath());
+                return processClassFilesInDirectory(baseDir.toPath());
             }
-
         } catch (IOException e) {
             e.printStackTrace();
             return false;
         }
     }
 
-
-    private void cleanUpArtifactsDir(Path tempDir) {
-        if (tempDir != null) {
+    private void cleanUpArtifactsDir(Path dir) {
+        if (dir != null && Files.exists(dir)) {
             try {
-                Files.walk(tempDir)
+                Files.walk(dir)
                     .sorted(Comparator.reverseOrder())
                     .map(Path::toFile)
-                    .forEach(file -> {
-                        if (file.isDirectory()) {
-                            if (file.list().length == 0) {
-                                file.delete();
-                            }
-                        } else {
-                            file.delete();
-                        }
-                    });
+                    .forEach(File::delete);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private boolean processJarFiles(File classportFilesDir, Path tempDir) {
-        try {
-            return Files.walk(classportFilesDir.toPath())
-                .filter(file -> file.toString().endsWith(".jar"))
-                .allMatch(file -> {
-                    try {
-                        unzip(file.toString(), tempDir.toString());
+    private boolean processJarFiles(Path jarRoot, Path extractTo) throws IOException {
+        return Files.walk(jarRoot)
+            .filter(path -> path.toString().endsWith(".jar"))
+            .allMatch(jar -> {
+                try {
+                    unzip(jar.toFile(), extractTo.toFile());
+                    return processClassFilesInDirectory(extractTo);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return false;
+                }
+            });
+    }
 
-                        return processClassFilesInDirectory(tempDir);
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                        return false;
+    private boolean processClassFilesInDirectory(Path root) throws IOException {
+        return Files.walk(root)
+            .filter(f -> f.toString().endsWith(".class"))
+            .allMatch(this::readAnnotation);
+    }
+
+    private boolean readAnnotation(Path classFile) {
+        try {
+            byte[] bytes = Files.readAllBytes(classFile);
+            ClassReader reader = new ClassReader(bytes);
+            final boolean[] found = {false};
+
+            reader.accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+                    if (desc.equals(Type.getDescriptor(ClassportInfo.class))) {
+                        found[0] = true;
                     }
-                });
+                    return super.visitAnnotation(desc, visible);
+                }
+            }, 0);
+
+            return found[0];
         } catch (IOException e) {
             e.printStackTrace();
             return false;
         }
     }
 
-    private boolean processClassFilesInDirectory(Path directory) {
-        try {
-            return Files.walk(directory)
-                .filter(f -> f.toString().endsWith(".class"))
-                .allMatch(f -> readAnnotation(f.toString()));
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            return false;
-        }
+    private void checkAnnotationValues(String expectedGroup, String expectedVersion,
+                                       String expectedId, String expectedArtefact) throws IOException {
+        byte[] classBytes = Files.readAllBytes(annotatedProjectClassPath);
+        ClassReader reader = new ClassReader(classBytes);
+
+        reader.accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+                if (desc.equals(Type.getDescriptor(ClassportInfo.class))) {
+                    return new AnnotationVisitor(Opcodes.ASM9) {
+                        @Override
+                        public void visit(String name, Object value) {
+                            switch (name) {
+                                case "group" -> assertEquals(expectedGroup, value);
+                                case "version" -> assertEquals(expectedVersion, value);
+                                case "id" -> assertEquals(expectedId, value);
+                                case "artefact" -> assertEquals(expectedArtefact, value);
+                            }
+                        }
+                    };
+                }
+                return super.visitAnnotation(desc, visible);
+            }
+        }, 0);
     }
 
-    private int getExitCodeRunMavenPlugin() throws MavenInvocationException, IOException{
+    private int getExitCodeRunMavenPlugin() throws MavenInvocationException {
         String projectDir = "src/test/resources/test-app";
-        String goal = "io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed";
+        String goal = "compile io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed";
 
         InvocationRequest request = new DefaultInvocationRequest();
         request.setPomFile(new File(projectDir, "pom.xml"));
@@ -164,90 +192,29 @@ public class EmbeddingMojoTest {
         if (os.contains("Mac")) {
             invoker.setMavenHome(new File(System.getenv("M2_HOME")));
         }
+
         InvocationResult result = invoker.execute(request);
         return result.getExitCode();
-
     }
 
-    private static void unzip(String zipFile, String destFolder) throws IOException {
+    private static void unzip(File zipFile, File destDir) throws IOException {
         try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
             ZipEntry entry;
             byte[] buffer = new byte[1024];
             while ((entry = zis.getNextEntry()) != null) {
-                File newFile = new File(destFolder + File.separator + entry.getName());
+                File outFile = new File(destDir, entry.getName());
                 if (entry.isDirectory()) {
-                    newFile.mkdirs();
+                    outFile.mkdirs();
                 } else {
-                    new File(newFile.getParent()).mkdirs();
-                    try (FileOutputStream fos = new FileOutputStream(newFile)) {
-                        int length;
-                        while ((length = zis.read(buffer)) > 0) {
-                            fos.write(buffer, 0, length);
+                    outFile.getParentFile().mkdirs();
+                    try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                        int len;
+                        while ((len = zis.read(buffer)) > 0) {
+                            fos.write(buffer, 0, len);
                         }
                     }
                 }
             }
         }
     }
-
-    private boolean readAnnotation(String classFilePath) {
-        byte[] classBytes;
-        try {
-            classBytes = Files.readAllBytes(Paths.get(classFilePath));
-            ClassReader classReader = new ClassReader(classBytes);
-
-            final boolean[] isAnnotationPresent = {false};
-
-            classReader.accept(new ClassVisitor(Opcodes.ASM9) {
-                @Override
-                public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-                    if (descriptor.equals(annotationClass.descriptorString())) {
-                        isAnnotationPresent[0] = true;
-                        return null;
-                    }
-
-                    return super.visitAnnotation(descriptor, visible);
-                }
-            }, 0);
-
-            return isAnnotationPresent[0];
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            return false;
-        }
-    }
-
-    private void checkAnnotationValues(String expectedGroup, String expectedVersion, String expectedId, String expectedArtefac) throws IOException {
-        // Load the class file
-        byte[] classBytes = Files.readAllBytes(Paths.get(annotatedProjectClassPath));
-        ClassReader classReader = new ClassReader(classBytes);
-
-        // Analyze the class using a custom ClassVisitor
-        classReader.accept(new ClassVisitor(Opcodes.ASM9) {
-            @Override
-            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-                if (descriptor.equals(annotationClass.descriptorString())) {
-                    return new AnnotationVisitor(Opcodes.ASM9) {
-                        @Override
-                        public void visit(String name, Object value) {
-                            if ("group".equals(name)) {
-                                assertEquals(expectedGroup, value, "Annotation field 'value' is incorrect");
-                            }
-                            if ("version".equals(name)) {
-                                assertEquals(expectedVersion, value, "Annotation field 'version' is incorrect");
-                            }
-                            if ("id".equals(name)) {
-                                assertEquals(expectedId, value, "Annotation field 'id' is incorrect");
-                            }
-                            if ("artefact".equals(name)) {
-                                assertEquals(expectedArtefac, value, "Annotation field 'artefact' is incorrect");
-                            }
-                        }
-                    };
-                }
-                return super.visitAnnotation(descriptor, visible);
-            }
-        }, 0);
-    }
-
 }
