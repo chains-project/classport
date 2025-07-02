@@ -8,7 +8,7 @@ cd multi
 mvn clean
 
 # run embedding plugin to embed annotations into multi project
-mvn io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
+mvn io.github.project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
 
 # merge the classport-files
 cd ..

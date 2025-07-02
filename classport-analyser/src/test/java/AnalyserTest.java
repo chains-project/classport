@@ -1,6 +1,6 @@
-import io.github.chains_project.classport.analyser.ClassLoadingAdder;
-import io.github.chains_project.classport.analyser.CorrectnessAnalyser;
-import io.github.chains_project.classport.commons.ClassportInfo;
+import io.github.project.classport.analyser.ClassLoadingAdder;
+import io.github.project.classport.analyser.CorrectnessAnalyser;
+import io.github.project.classport.commons.ClassportInfo;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class CorrectnessAnalyserTest {
+class AnalyserTest {
 
 	private final Path annotatedJarPath = Path.of("src/test/resources/annotated-classes/test-agent-app-1.0-SNAPSHOT.jar");
 	private final Path notAnnotatedJarPath = Path.of("src/test/resources/not-annotated-classes/test-agent-app-1.0-SNAPSHOT.jar");
