@@ -13,9 +13,6 @@
 It is a JVM instrumentation agent and Maven plugin that embeds and retrieves dependency metadata (GAV: Group, Artifact, Version) directly from Java `.class` files. It enables runtime introspection of runtime dependencies in Java.
 
 
-
-See [The Embedding and Retrieval of Software Supply Chain Information in Java Applications (Master's thesis Daniel Williams, KTH, 2024)](https://kth.diva-portal.org/smash/record.jsf?dswid=7855&pid=diva2%3A1905606&c=1&searchType=SIMPLE&language=en&query=The+Embedding+and+Retrieval+of+Software+Supply+Chain+Information+in+Java+Applications&af=%5B%5D&aq=%5B%5B%5D%5D&aq2=%5B%5B%5D%5D&aqe=%5B%5D&noOfRows=50&sortOrder=author_sort_asc&sortOrder2=title_sort_asc&onlyFullText=false&sf=all)
-
 ## 🎯 Motivation
 
 Java applications often rely on third-party libraries via Maven, but all dependency metadata is lost once the application is packaged and deployed. This creates blind spots for:
