@@ -1,6 +1,6 @@
-import io.github.chains_project.classport.analyser.ClassLoadingAdder;
-import io.github.chains_project.classport.analyser.CorrectnessAnalyser;
-import io.github.chains_project.classport.commons.ClassportInfo;
+import io.github.project.classport.analyser.ClassLoadingAdder;
+import io.github.project.classport.analyser.CorrectnessAnalyser;
+import io.github.project.classport.commons.ClassportInfo;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;

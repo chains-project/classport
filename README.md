@@ -60,7 +60,7 @@ In order to achieve runtime dependencies introspection with classport, you have 
 1. Embed
 Inside the target project folder.
 ```bash
-mvn compile io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
+mvn compile io.github.project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
 mvn package -Dmaven.repo.local=classport-files -DskipTests
 ```
 Note: if the project has more than one module, it is required to merge all the `classport-files` folders and use this as a Maven local repo during the packaging phase. 
@@ -81,7 +81,7 @@ cd resources/simple-app-monitoring
 mvn clean
 
 # Embed
-mvn compile io.github.chains-project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
+mvn compile io.github.project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
 mvn package -Dmaven.repo.local=classport-files -DskipTests
 
 # Introspect
