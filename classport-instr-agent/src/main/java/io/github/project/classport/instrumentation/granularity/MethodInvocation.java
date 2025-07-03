@@ -103,7 +103,7 @@ public class MethodInvocation implements RecordingStrategy {
 			// Inject code to add to the queue every time the method is invoked
 			mv.visitLdcInsn(className + "," + methodName + "," + ann.group() + "," + ann.artefact() + "," + ann.version());
 			mv.visitMethodInsn(Opcodes.INVOKESTATIC,
-					"io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
+					"io/github/project/classport/instrumentation/MethodInterceptorVisitor",
 					"addToInvokeLater",
 					"(Ljava/lang/String;)V",
 					false);
