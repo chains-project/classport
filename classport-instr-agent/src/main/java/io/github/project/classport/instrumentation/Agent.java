@@ -48,7 +48,6 @@ public class Agent {
 			}
 			System.out.println("Output file: " + OUTPUT_FILE);
 			System.out.println("Output path: " + OUTPUT_PATH_DIR);
-			System.err.println("Not annotated classes will be saved in " + OUTPUT_FILE.replace(".csv", "_nonAnnotatedClasses.txt"));
 			Path outputPath = OUTPUT_PATH_DIR.resolve(OUTPUT_FILE);
 
 			recordingStrategy = switch (granularity) {
