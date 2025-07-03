@@ -81,7 +81,7 @@ class LogDependency extends MethodVisitor {
 		}
 		mv.visitLdcInsn(content);
 		mv.visitMethodInsn(Opcodes.INVOKESTATIC,
-				"io/github/chains_project/classport/instrumentation/MethodInterceptorVisitor",
+				"io/github/project/classport/instrumentation/MethodInterceptorVisitor",
 				"addToInvokeLater",
 				"(Ljava/lang/String;)V",
 				false);
