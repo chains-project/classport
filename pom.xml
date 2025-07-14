@@ -22,14 +22,6 @@
     </license>
   </licenses>
 
-  <developers>
-    <developer>
-      <id>danielwis</id>
-      <name>Daniel Williams</name>
-      <email>daniel_williams@live.com</email>
-      <organization>KTH Royal Institute of Technology</organization>
-    </developer>
-  </developers>
 
   <modules>
     <module>classport-commons</module>
