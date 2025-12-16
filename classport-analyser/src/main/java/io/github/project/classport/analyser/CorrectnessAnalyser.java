@@ -20,16 +20,12 @@ import org.objectweb.asm.Opcodes;
 import io.github.project.classport.commons.AnnotationReader;
 import io.github.project.classport.commons.ClassportInfo;
 import io.github.project.classport.commons.ClassportProject;
+import io.github.project.classport.commons.Utility;
 
 /**
  *
  */
 public class CorrectnessAnalyser {
-    // All class files begin with the magic bytes 0xCAFEBABE
-    // TODO: Refactor the Maven plugin's JarHelper, put in into classport-commons,
-    // and use this from there.
-    static final byte[] magicBytes = new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE };
-
     public static HashMap<String, ClassportInfo> getSBOM(JarFile jar) {
         HashMap<String, ClassportInfo> sbom = new HashMap<>();
         HashMap<String, Integer> noAnnotations = new HashMap<>();
@@ -47,7 +43,7 @@ public class CorrectnessAnalyser {
                 in.unread(firstBytes);
 
                 // We only care about class files
-                if (Arrays.equals(firstBytes, magicBytes)) {
+                if (Arrays.equals(firstBytes, Utility.MAGIC_BYTES)) {
                     byte[] classFileBytes = in.readAllBytes();
                     ClassportInfo ann = AnnotationReader.getAnnotationValues(classFileBytes);
                     ClassInfo info = ClassNameExtractor.getInfo(classFileBytes);
@@ -136,7 +132,7 @@ public class CorrectnessAnalyser {
                 in.unread(firstBytes);
 
                 // We only care about class files
-                if (Arrays.equals(firstBytes, magicBytes)) {
+                if (Arrays.equals(firstBytes, Utility.MAGIC_BYTES)) {
                     byte[] classFileBytes = in.readAllBytes();
                     ClassportInfo ann = AnnotationReader.getAnnotationValues(classFileBytes);
                     // If a class is not public, we won't be able to call it.
@@ -178,7 +174,7 @@ public class CorrectnessAnalyser {
                 byte[] firstBytes = in.readNBytes(4);
                 in.unread(firstBytes);
 
-                if (Arrays.equals(firstBytes, magicBytes)) {
+                if (Arrays.equals(firstBytes, Utility.MAGIC_BYTES)) {
                     byte[] classFileBytes = in.readAllBytes();
                     className = ClassNameExtractor.getInfo(classFileBytes).name;
                     // If this is the entry point class file, modify it

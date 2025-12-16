@@ -1,8 +1,5 @@
 package io.github.project.classport.analyser;
 
-import io.github.project.classport.commons.AnnotationReader;
-import io.github.project.classport.commons.ClassportInfo;
-
 import java.io.IOException;
 import java.io.PushbackInputStream;
 import java.util.Arrays;
@@ -14,7 +11,9 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import static io.github.project.classport.analyser.CorrectnessAnalyser.magicBytes;
+import io.github.project.classport.commons.AnnotationReader;
+import io.github.project.classport.commons.ClassportInfo;
+import static io.github.project.classport.commons.Utility.MAGIC_BYTES;
 
 public class CompletenessAnalyzer {
 	public static void main(String[] args) {
@@ -54,7 +53,7 @@ public class CompletenessAnalyzer {
 				in.unread(firstBytes);
 
 				// We only care about class files
-				if (Arrays.equals(firstBytes, magicBytes)) {
+				if (Arrays.equals(firstBytes, MAGIC_BYTES)) {
 					byte[] classFileBytes = in.readAllBytes();
 					ClassportInfo ann = AnnotationReader.getAnnotationValues(classFileBytes);
 					ClassInfo info = ClassNameExtractor.getInfo(classFileBytes);
