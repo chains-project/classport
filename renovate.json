@@ -1,0 +1,20 @@
+{
+    "extends": [
+       "config:recommended",
+       "helpers:pinGitHubActionDigests"
+    ],
+    "packageRules": [
+       {
+          "matchUpdateTypes": [
+             "minor",
+             "patch",
+             "pin",
+             "digest",
+             "pinDigest",
+             "lockFileMaintenance"
+          ],
+          "automerge": true
+       }
+    ]
+ }
+ 
