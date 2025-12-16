@@ -1,17 +1,15 @@
 package io.github.project.classport.plugin;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.execution.MavenSession;
@@ -104,25 +102,32 @@ public class EmbeddingMojo
         }
 
         getLog().info("Processing compiled classes in '" + dirToWalk + "'");
-        Files.walkFileTree(dirToWalk.toPath(), new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                try (FileInputStream in = new FileInputStream(file.toFile())) {
-                    byte[] bytes = in.readAllBytes();
+        try (Stream<Path> paths = Files.walk(dirToWalk.toPath())) {
+            paths.parallel()
+                    .filter(Files::isRegularFile)
+                    .forEach(file -> {
+                        try (FileInputStream in = new FileInputStream(file.toFile())) {
+                            byte[] header = in.readNBytes(4);
+                            boolean isClassFile = header.length == 4 && Arrays.equals(header, Utility.MAGIC_BYTES);
 
-                    if (Arrays.equals(Arrays.copyOfRange(bytes, 0, 4), Utility.MAGIC_BYTES)) {
-                        MetadataAdder adder = new MetadataAdder(bytes);
-                        try (FileOutputStream out = new FileOutputStream(file.toFile())) {
-                            getLog().debug("Embedding metadata in detected class file: " + file);
-                            out.write(adder.add(metadata));
+                            if (!isClassFile) {
+                                return;
+                            }
+
+                            ByteArrayOutputStream buf = new ByteArrayOutputStream((int) Files.size(file));
+                            buf.write(header);
+                            in.transferTo(buf);
+                            byte[] original = buf.toByteArray();
+                            byte[] modified = new MetadataAdder(original).add(metadata);
+                            Files.write(file, modified);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Failed to process file " + file, e);
                         }
-                    }
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
+                    });
+        }
     }
 
+    @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         Set<Artifact> dependencyArtifacts = project.getArtifacts();
 

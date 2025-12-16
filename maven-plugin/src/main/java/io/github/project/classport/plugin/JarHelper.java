@@ -1,21 +1,23 @@
 package io.github.project.classport.plugin;
 
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PushbackInputStream;
 import java.nio.file.FileVisitResult;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -78,6 +80,19 @@ class JarHelper {
         return unsigned;
     }
 
+    // Represents a processed JAR entry ready to be written
+    private static class ProcessedEntry {
+        final String relPath;
+        final byte[] content;
+        final boolean isDirectory;
+
+        ProcessedEntry(String relPath, byte[] content, boolean isDirectory) {
+            this.relPath = relPath;
+            this.content = content;
+            this.isDirectory = isDirectory;
+        }
+    }
+
     public void embed(ClassportInfo metadata) throws IOException {
         File tmpdir = Files.createTempDirectory("classport").toFile();
         extractTo(tmpdir);
@@ -89,55 +104,108 @@ class JarHelper {
 
         target.getParentFile().mkdirs();
 
-        try (JarOutputStream out = new JarOutputStream(
-                new BufferedOutputStream(new FileOutputStream(target)))) {
-            Files.walkFileTree(tmpdir.toPath(), new SimpleFileVisitor<Path>() {
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String relPath = tmpdir.toPath().relativize(file).toString();
+        Path tmpdirPath = tmpdir.toPath();
+        
+        List<Path> files = new ArrayList<>();
+        List<Path> directories = new ArrayList<>();
+        
+        Files.walkFileTree(tmpdirPath, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                files.add(file);
+                return FileVisitResult.CONTINUE;
+            }
 
-                    // Signed JARs won't work since we edit the contents, so remove signatures
-                    if (isSignatureFile(relPath))
-                        return FileVisitResult.CONTINUE;
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                if (!dir.equals(tmpdirPath)) {
+                    directories.add(dir);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
 
-                    out.putNextEntry(new JarEntry(relPath));
+        Map<String, ProcessedEntry> processedEntries = new ConcurrentHashMap<>();
+        
+        files.parallelStream().forEach(file -> {
+            try {
+                String relPath = tmpdirPath.relativize(file).toString();
+                
+                // Signed JARs won't work since we edit the contents, so remove signatures
+                if (isSignatureFile(relPath))
+                    return;
 
-                    // Remove signature attributes from manifest file
-                    if (relPath.equals("META-INF/MANIFEST.MF")) {
-                        Manifest manifest = new Manifest(new FileInputStream(file.toFile()));
+                byte[] content;
+                boolean isManifest = relPath.equals("META-INF/MANIFEST.MF");
+                
+                if (isManifest) {
+                    try (InputStream in = Files.newInputStream(file)) {
+                        Manifest manifest = new Manifest(in);
                         Manifest unsigned = getUnsignedManifest(manifest);
-                        unsigned.write(out);
-                    } else {
-                        // We need to "peek" at the first 4 bytes to see if it's a classfile or not
-                        try (PushbackInputStream in = new PushbackInputStream(new FileInputStream(file.toFile()), 4)) {
-                            byte[] firstBytes = in.readNBytes(4);
-                            in.unread(firstBytes);
-
-                            if (Arrays.equals(firstBytes, magicBytes)) {
-                                MetadataAdder adder = new MetadataAdder(in.readAllBytes());
-                                out.write(adder.add(metadata));
-                            } else {
-                                // Not a classfile, just stream the entire contents directly
-                                in.transferTo(out);
-                            }
+                        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                        unsigned.write(buf);
+                        content = buf.toByteArray();
+                    }
+                } else {
+                    // We need to "peek" at the first 4 bytes to see if it's a classfile or not
+                    try (InputStream in = Files.newInputStream(file)) {
+                        byte[] header = in.readNBytes(4);
+                        if (header.length != 4 || !Arrays.equals(header, magicBytes)) {
+                            ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                            buf.write(header);
+                            in.transferTo(buf);
+                            content = buf.toByteArray();
+                        } else {
+                            // Class file - read all, add metadata
+                            ByteArrayOutputStream buf = new ByteArrayOutputStream((int) Files.size(file));
+                            buf.write(header);
+                            in.transferTo(buf);
+                            content = new MetadataAdder(buf.toByteArray()).add(metadata);
                         }
                     }
-
-                    out.closeEntry();
-                    return FileVisitResult.CONTINUE;
                 }
+                
+                processedEntries.put(relPath, new ProcessedEntry(relPath, content, false));
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to process file " + file, e);
+            }
+        });
 
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    String relPath = tmpdir.toPath().relativize(dir).toString() + "/";
+        // Add directory entries
+        for (Path dir : directories) {
+            String relPath = tmpdirPath.relativize(dir).toString() + "/";
+            processedEntries.put(relPath, new ProcessedEntry(relPath, null, true));
+        }
 
-                    // .jar files don't include the root ("/")
-                    if (dir.equals(tmpdir.toPath()))
-                        return FileVisitResult.CONTINUE;
-
-                    out.putNextEntry(new JarEntry(relPath));
-                    out.closeEntry();
-                    return FileVisitResult.CONTINUE;
-                }
-            });
+        // Write entries to JAR in order (directories first, then files)
+        try (JarOutputStream out = new JarOutputStream(
+                new BufferedOutputStream(new FileOutputStream(target)))) {
+            // Write directories first
+            processedEntries.values().stream()
+                    .filter(e -> e.isDirectory)
+                    .sorted((a, b) -> a.relPath.compareTo(b.relPath))
+                    .forEach(entry -> {
+                        try {
+                            out.putNextEntry(new JarEntry(entry.relPath));
+                            out.closeEntry();
+                        } catch (IOException e) {
+                            throw new RuntimeException("Failed to write directory entry " + entry.relPath, e);
+                        }
+                    });
+            
+            // Then write files
+            processedEntries.values().stream()
+                    .filter(e -> !e.isDirectory)
+                    .sorted((a, b) -> a.relPath.compareTo(b.relPath))
+                    .forEach(entry -> {
+                        try {
+                            out.putNextEntry(new JarEntry(entry.relPath));
+                            out.write(entry.content);
+                            out.closeEntry();
+                        } catch (IOException e) {
+                            throw new RuntimeException("Failed to write file entry " + entry.relPath, e);
+                        }
+                    });
         }
     }
 
