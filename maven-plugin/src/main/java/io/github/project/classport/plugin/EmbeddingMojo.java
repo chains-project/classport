@@ -1,7 +1,5 @@
 package io.github.project.classport.plugin;
 
-import io.github.project.classport.commons.*;
-
 /*
  * Copyright 2001-2005 The Apache Software Foundation.
  *
@@ -17,23 +15,6 @@ import io.github.project.classport.commons.*;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import org.apache.maven.artifact.Artifact;
-import org.apache.maven.plugins.annotations.Component;
-import org.apache.maven.plugins.annotations.Execute;
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.model.Dependency;
-import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugins.annotations.LifecyclePhase;
-import org.apache.maven.plugins.annotations.ResolutionScope;
-import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.project.MavenProject;
-import org.apache.maven.project.ProjectBuilder;
-import org.apache.maven.project.ProjectBuildingException;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -46,6 +27,25 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugins.annotations.Component;
+import org.apache.maven.plugins.annotations.LifecyclePhase;
+import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.ProjectBuilder;
+import org.apache.maven.project.ProjectBuildingException;
+
+import io.github.project.classport.commons.ClassportHelper;
+import io.github.project.classport.commons.ClassportInfo;
+import io.github.project.classport.commons.Utility;
 
 @Mojo(name = "embed", defaultPhase = LifecyclePhase.GENERATE_RESOURCES, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
 public class EmbeddingMojo
@@ -71,11 +71,6 @@ public class EmbeddingMojo
      */
     @Parameter(defaultValue = "${project.build.outputDirectory}", required = true)
     private File classesDirectory;
-
-    /*
-     * TODO: Move into classport commons along with all other instances
-     */
-    private static final byte[] magicBytes = new byte[] { (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE };
 
     /**
      * Builds a {@link MavenProject} from an {@link Artifact}
@@ -130,7 +125,7 @@ public class EmbeddingMojo
                 try (FileInputStream in = new FileInputStream(file.toFile())) {
                     byte[] bytes = in.readAllBytes();
 
-                    if (Arrays.equals(Arrays.copyOfRange(bytes, 0, 4), magicBytes)) {
+                    if (Arrays.equals(Arrays.copyOfRange(bytes, 0, 4), Utility.MAGIC_BYTES)) {
                         MetadataAdder adder = new MetadataAdder(bytes);
                         try (FileOutputStream out = new FileOutputStream(file.toFile())) {
                             getLog().debug("Embedding metadata in detected class file: " + file);
