@@ -28,6 +28,7 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.ProjectBuilder;
 import org.apache.maven.project.ProjectBuildingException;
 
+import io.github.project.classport.commons.AnnotationConstantPool;
 import io.github.project.classport.commons.ClassportHelper;
 import io.github.project.classport.commons.ClassportInfo;
 import io.github.project.classport.commons.Utility;
@@ -98,6 +99,8 @@ public class EmbeddingMojo
 
     private void embedDirectory(Artifact a, File dirToWalk) throws IOException, MojoExecutionException {
         ClassportInfo metadata = getMetadata(a);
+        AnnotationConstantPool acp = new AnnotationConstantPool(metadata);
+        AnnotationConstantPool.ConstantPoolData cpData = acp.getNewEntries();
         if (!dirToWalk.exists()) {
             getLog().info("No classes compiled for " + project.getArtifactId() + ". Skipping.");
             return;
@@ -111,10 +114,9 @@ public class EmbeddingMojo
                     byte[] bytes = in.readAllBytes();
 
                     if (Arrays.equals(Arrays.copyOfRange(bytes, 0, 4), Utility.MAGIC_BYTES)) {
-                        MetadataAdder adder = new MetadataAdder(bytes);
+                        byte[] modifiedCpBytes = acp.injectAnnotation(bytes, cpData);
                         try (FileOutputStream out = new FileOutputStream(file.toFile())) {
-                            getLog().debug("Embedding metadata in detected class file: " + file);
-                            out.write(adder.add(metadata));
+                            out.write(modifiedCpBytes);
                         }
                     }
                 }

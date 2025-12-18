@@ -9,10 +9,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PushbackInputStream;
 import java.nio.file.FileVisitResult;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Map;
@@ -22,6 +22,7 @@ import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
+import io.github.project.classport.commons.AnnotationConstantPool;
 import io.github.project.classport.commons.ClassportInfo;
 
 class JarHelper {
@@ -77,26 +78,28 @@ class JarHelper {
 
         return unsigned;
     }
-
+    
     public void embed(ClassportInfo metadata) throws IOException {
+        AnnotationConstantPool acp = new AnnotationConstantPool(metadata);
+        AnnotationConstantPool.ConstantPoolData cpData = acp.getNewEntries();
         File tmpdir = Files.createTempDirectory("classport").toFile();
         extractTo(tmpdir);
-
+        
         if (target.exists() && !overwrite)
             throw new IOException("File or directory " + target + " already exists. Skipping embed...");
         if (source.isDirectory())
             throw new IOException("Embedding metadata requires a jar as source. Skipping embed...");
-
+        
         target.getParentFile().mkdirs();
-
+        
         try (JarOutputStream out = new JarOutputStream(
-                new BufferedOutputStream(new FileOutputStream(target)))) {
-            Files.walkFileTree(tmpdir.toPath(), new SimpleFileVisitor<Path>() {
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String relPath = tmpdir.toPath().relativize(file).toString();
-
-                    // Signed JARs won't work since we edit the contents, so remove signatures
-                    if (isSignatureFile(relPath))
+            new BufferedOutputStream(new FileOutputStream(target)))) {
+                Files.walkFileTree(tmpdir.toPath(), new SimpleFileVisitor<Path>() {
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        String relPath = tmpdir.toPath().relativize(file).toString();
+                        
+                        // Signed JARs won't work since we edit the contents, so remove signatures
+                        if (isSignatureFile(relPath))
                         return FileVisitResult.CONTINUE;
 
                     out.putNextEntry(new JarEntry(relPath));
@@ -113,8 +116,11 @@ class JarHelper {
                             in.unread(firstBytes);
 
                             if (Arrays.equals(firstBytes, magicBytes)) {
-                                MetadataAdder adder = new MetadataAdder(in.readAllBytes());
-                                out.write(adder.add(metadata));
+                                // It's a classfile, embed the metadata
+                                byte[] classBytes = in.readAllBytes();
+                                byte[] modifiedCpBytes = acp.injectAnnotation(classBytes, cpData);
+
+                                out.write(modifiedCpBytes);
                             } else {
                                 // Not a classfile, just stream the entire contents directly
                                 in.transferTo(out);
