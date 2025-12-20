@@ -45,7 +45,7 @@ public class AnnotationConstantPoolTest {
     }
 
     @Test
-    void injectAnnotation() throws IOException {
+    void injectAnnotation_noExistingAnnotations() throws IOException {
         // arrange
         ClassportInfo annotationInfo = new ClassportHelper().getInstance(
             "org.apache.pdfbox:pdfbox-app:bundle:3.0.4",
@@ -67,4 +67,26 @@ public class AnnotationConstantPoolTest {
         assertArrayEquals(resultBytes, expectedBytes);
     }
 
+    @Test
+    void injectAnnotation_existingAnnotations() throws IOException {
+        // arrange
+        ClassportInfo annotationInfo = new ClassportHelper().getInstance(
+            "foo",
+            false,
+            "bar:jar:1.0.0",
+            "bar",
+            "foo",
+            "1.0.0",
+            new String[] {"baz:jar:2.0.0"}
+        );
+        byte[] originalBytes = Files.readAllBytes(TEST_RESOURCES_DIR.resolve("Main_original.class"));
+        byte[] expectedBytes = Files.readAllBytes(TEST_RESOURCES_DIR.resolve("Main_annotated.class"));
+
+        // act
+        AnnotationConstantPool annotationConstantPool = new AnnotationConstantPool(annotationInfo);
+        byte[] resultBytes = annotationConstantPool.injectAnnotation(originalBytes, annotationConstantPool.getNewEntries());
+
+        // assert
+        assertArrayEquals(resultBytes, expectedBytes);
+    }
 }
