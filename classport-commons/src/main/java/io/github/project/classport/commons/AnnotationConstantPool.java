@@ -107,6 +107,15 @@ public class AnnotationConstantPool {
             
             int rvaUtf8Index = findUtf8InConstantPool(existingCpData, originalConstantPoolCount - 1, "RuntimeVisibleAnnotations");
             boolean rvaExists = rvaUtf8Index > 0;
+
+            // check if ClassportInfo is already in the constant pool
+            int classportInfoIndex = findUtf8InConstantPool(existingCpData, originalConstantPoolCount - 1, String.format("L%s;", ClassportInfo.class.getName().replace('.', '/')));
+            boolean classportInfoExists = classportInfoIndex > 0;
+            if (classportInfoExists) {
+                // we don't want duplicate classport info entries
+                // so we return the original bytes
+                return originalBytes;
+            }
             
             int newConstantPoolCount = originalConstantPoolCount + cpd.entryCount();
             if (!rvaExists) {
