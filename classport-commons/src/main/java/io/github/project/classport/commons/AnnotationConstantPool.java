@@ -21,7 +21,7 @@ public class AnnotationConstantPool {
         try {
             int entryCount = 0;
             // Annotation type descriptor
-            writeUtf8Entry(dos, "Lio/github/project/classport/commons/ClassportInfo;");
+            writeUtf8Entry(dos, String.format("L%s;", ClassportInfo.class.getName().replace('.', '/')));
             entryCount++;
 
             // Group (key)
