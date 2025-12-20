@@ -96,9 +96,7 @@ public class AnnotationConstantPool {
             
             // Constant pool count
             int originalConstantPoolCount = originalBuffer.getShort() & 0xFFFF;
-            int newConstantPoolCount = originalConstantPoolCount + cpd.entryCount();
-            dos.writeShort(newConstantPoolCount + 1); // we always add one for "RuntimeVisibleAnnotations"
-
+            
             int cpStart = originalBuffer.position();
             skipConstantPool(originalBuffer, originalConstantPoolCount - 1);
             int cpEnd = originalBuffer.position();
@@ -106,11 +104,23 @@ public class AnnotationConstantPool {
             byte[] existingCpData = new byte[cpEnd - cpStart];
             originalBuffer.position(cpStart);
             originalBuffer.get(existingCpData);
+            
+            int rvaUtf8Index = findUtf8InConstantPool(existingCpData, originalConstantPoolCount - 1, "RuntimeVisibleAnnotations");
+            boolean rvaExists = rvaUtf8Index > 0;
+            
+            int newConstantPoolCount = originalConstantPoolCount + cpd.entryCount();
+            if (!rvaExists) {
+                newConstantPoolCount++; // add one for "RuntimeVisibleAnnotations"
+            }
+            dos.writeShort(newConstantPoolCount);
+            
             dos.write(existingCpData);
 
             // new entries
             dos.write(cpd.data());
-            writeUtf8Entry(dos, "RuntimeVisibleAnnotations");
+            if (!rvaExists) {
+                writeUtf8Entry(dos, "RuntimeVisibleAnnotations");
+            }
 
             dos.writeShort(originalBuffer.getShort()); // access flags
             dos.writeShort(originalBuffer.getShort()); // this_class
@@ -126,7 +136,7 @@ public class AnnotationConstantPool {
             copyMembers(originalBuffer, dos); // methods
 
                     // Calculate indices for our new entries
-            CPIndices indices = new CPIndices(originalConstantPoolCount);
+            CPIndices indices = new CPIndices(originalConstantPoolCount, rvaExists ? rvaUtf8Index : -1);
             // 6. Handle class attributes (add RuntimeVisibleAnnotations)
             int classAttrCount = originalBuffer.getShort() & 0xFFFF;
             int rvaIndex = findRuntimeVisibleAnnotationsAttribute(originalBytes, originalBuffer.position() - 2, classAttrCount);
@@ -351,6 +361,48 @@ public class AnnotationConstantPool {
         }
     }
 
+    private int findUtf8InConstantPool(byte[] cpData, int cpCount, String target) {
+        ByteBuffer buffer = ByteBuffer.wrap(cpData);
+        int currentIndex = 1; // Constant pool indices start at 1
+        
+        for (int i = 0; i < cpCount; i++) {
+            int tag = buffer.get() & 0xFF;
+            
+            switch (tag) {
+                case 1: // UTF8
+                    int len = buffer.getShort() & 0xFFFF;
+                    byte[] utf8Bytes = new byte[len];
+                    buffer.get(utf8Bytes);
+                    String utf8String = new String(utf8Bytes, java.nio.charset.StandardCharsets.UTF_8);
+                    if (utf8String.equals(target)) {
+                        return currentIndex;
+                    }
+                    break;
+                case 3: case 4: // Integer, Float
+                    buffer.getInt();
+                    break;
+                case 5: case 6: // Long, Double
+                    buffer.getLong();
+                    i++; // takes 2 slots
+                    currentIndex++; // Long and Double take 2 constant pool slots
+                    break;
+                case 7: case 8: case 16: case 19: case 20: // Class, String, etc.
+                    buffer.getShort();
+                    break;
+                case 9: case 10: case 11: case 12: case 17: case 18: // Fieldref, etc.
+                    buffer.getInt();
+                    break;
+                case 15: // MethodHandle
+                    buffer.get();
+                    buffer.getShort();
+                    break;
+            }
+            currentIndex++;
+        }
+        
+        return -1; // Not found
+    }
+
     private void skipConstantPool(ByteBuffer buffer, int count) {
         for (int i = 0; i < count; i++) {
             int tag = buffer.get() & 0xFF;
@@ -399,7 +451,7 @@ public class AnnotationConstantPool {
         final int isDirectDependencyValueIndex;
         final int rvaNameIndex;
         
-        CPIndices(int baseCPCount) {
+        CPIndices(int baseCPCount, int existingRvaIndex) {
             int offset = 0;
             
             annotationTypeIndex = baseCPCount + offset++;
@@ -423,7 +475,12 @@ public class AnnotationConstantPool {
             isDirectDependencyNameIndex = baseCPCount + offset++;
             isDirectDependencyValueIndex = baseCPCount + offset++;
             
-            rvaNameIndex = baseCPCount + offset; // This won't exist in cpData!
+            // Use existing index if found, otherwise calculate new index
+            if (existingRvaIndex > 0) {
+                rvaNameIndex = existingRvaIndex;
+            } else {
+                rvaNameIndex = baseCPCount + offset;
+            }
         }
     }
 }
