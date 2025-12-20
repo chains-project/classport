@@ -61,9 +61,12 @@ In order to achieve runtime dependencies introspection with classport, you have 
 Inside the target project folder.
 ```bash
 mvn compile io.github.project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
-mvn package -Dmaven.repo.local=classport-files -DskipTests
+mvn package -Dmaven.repo.local=classport-files -DskipTests -Dmaven.main.skip
 ```
-Note: if the project has more than one module, it is required to merge all the `classport-files` folders and use this as a Maven local repo during the packaging phase. 
+> Note: `-Dmaven.main.skip` is used to skip the main class compilation and packaging.
+> This is necessary because packaging phase writes the `MANIFEST.MF` file into `target/classes` directory which triggers a recompilation of the main class *for the next submodule* in the reactor phase.
+> For a single module project, this `-Dmaven.main.skip` is not needed.
+> If you do need to compile the main class, you can run `mvn compile` again.
 
 2. Introspect
 ```bash
@@ -83,6 +86,7 @@ mvn clean
 # Embed
 mvn compile io.github.project:classport-maven-plugin:0.1.0-SNAPSHOT:embed
 mvn package -Dmaven.repo.local=classport-files -DskipTests
+> single module project so we do not need to skip the main class compilation.
 
 # Introspect
 mkdir output
