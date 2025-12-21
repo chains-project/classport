@@ -139,8 +139,28 @@ public class EmbeddingMojo
             getLog().error("Failed to embed annotations in project class files: " + e);
         }
 
+        // Build a map of reactor artifacts for quick lookup
+        java.util.Set<String> reactorArtifactKeys = new java.util.HashSet<>();
+        if (session.getProjects() != null && session.getProjects().size() > 1) {
+            for (MavenProject reactorProject : session.getProjects()) {
+                String key = reactorProject.getGroupId() + ":" + 
+                            reactorProject.getArtifactId() + ":" + 
+                            reactorProject.getVersion();
+                reactorArtifactKeys.add(key);
+            }
+        }
+
         getLog().info("Processing dependencies");
         for (Artifact artifact : dependencyArtifacts) {
+            // Skip reactor modules in this loop, they will be processed separately
+            String artifactKey = artifact.getGroupId() + ":" + 
+                                artifact.getArtifactId() + ":" + 
+                                artifact.getVersion();
+            if (reactorArtifactKeys.contains(artifactKey)) {
+                getLog().debug("Skipping reactor module " + artifactKey + " in regular dependency processing");
+                continue;
+            }
+
             try {
                 ClassportInfo meta = getMetadata(artifact);
                 String artefactPath = getArtefactPath(artifact, true);
@@ -169,6 +189,9 @@ public class EmbeddingMojo
             }
 
         }
+        
+        // Process reactor modules to enable direct packaging in multi-module projects
+        processReactorModules(localrepoRoot);
     }
 
     /*
@@ -188,6 +211,29 @@ public class EmbeddingMojo
                 artifact.getGroupId(),
                 artifact.getVersion(),
                 dependencyProject.getModel().getDependencies()
+                        .stream()
+                        .filter(transitiveDep -> !transitiveDep.getScope().equals(Artifact.SCOPE_TEST))
+                        .map(transitiveDep -> getDependencyLongId(transitiveDep))
+                        .collect(Collectors.toList()).toArray(String[]::new));
+    }
+
+    /*
+     * Get the Maven metadata for a reactor module artifact.
+     * Uses the reactor project directly instead of trying to build it from the artifact.
+     */
+    private ClassportInfo getMetadataForReactorModule(Artifact artifact, MavenProject reactorProject) throws IOException {
+        String aId = getArtifactLongId(artifact);
+        boolean isDirectDependency = this.project.getDependencies().stream().map(dep -> getDependencyLongId(dep))
+                .collect(Collectors.toList()).contains(aId);
+
+        return new ClassportHelper().getInstance(
+                getArtifactLongId(project.getArtifact()),
+                isDirectDependency,
+                aId,
+                artifact.getArtifactId(),
+                artifact.getGroupId(),
+                artifact.getVersion(),
+                reactorProject.getModel().getDependencies()
                         .stream()
                         .filter(transitiveDep -> !transitiveDep.getScope().equals(Artifact.SCOPE_TEST))
                         .map(transitiveDep -> getDependencyLongId(transitiveDep))
@@ -219,5 +265,100 @@ public class EmbeddingMojo
                 a.getBaseVersion(), // This seems to always be the base version
                 a.getArtifactId(), (resolveSnapshotVersion ? a.getVersion() : a.getBaseVersion()), classifier,
                 "jar" /* TODO support more extensions */);
+    }
+
+    /**
+     * Process reactor modules to enable direct packaging in multi-module projects.
+     * For each reactor module that is a dependency of the current project,
+     * copy its artifact and POM to the classport-files directory with embedded metadata.
+     * This allows `mvn package -Dmaven.repo.local=classport-files` to work without
+     * manual aggregation of classport-files directories.
+     * 
+     * This method should be called after the package phase to ensure reactor module
+     * JARs are available. If called during compile phase, reactor JARs won't exist yet.
+     */
+    private void processReactorModules(File localrepoRoot) throws MojoExecutionException {
+        if (session.getProjects() == null || session.getProjects().size() <= 1) {
+            // Not a multi-module build or single module
+            return;
+        }
+
+        getLog().info("Processing reactor modules for multi-module support");
+        
+        // Get all reactor projects
+        java.util.List<MavenProject> reactorProjects = session.getProjects();
+        
+        // Build a map of reactor artifacts by their coordinates
+        java.util.Map<String, MavenProject> reactorArtifacts = new java.util.HashMap<>();
+        for (MavenProject reactorProject : reactorProjects) {
+            String key = reactorProject.getGroupId() + ":" + 
+                        reactorProject.getArtifactId() + ":" + 
+                        reactorProject.getVersion();
+            reactorArtifacts.put(key, reactorProject);
+        }
+        
+        // Check each dependency to see if it's a reactor module
+        Set<Artifact> dependencyArtifacts = project.getArtifacts();
+        for (Artifact artifact : dependencyArtifacts) {
+            String artifactKey = artifact.getGroupId() + ":" + 
+                                artifact.getArtifactId() + ":" + 
+                                artifact.getVersion();
+            
+            MavenProject reactorModule = reactorArtifacts.get(artifactKey);
+            if (reactorModule != null) {
+                // This dependency is a reactor module
+                try {
+                    getLog().debug("Found reactor module dependency: " + artifactKey);
+                    
+                    // Try to find the packaged JAR in the target directory
+                    // The artifact file might not be set yet if we're in compile phase
+                    File reactorArtifactFile = reactorModule.getArtifact().getFile();
+                    
+                    // If artifact file is not set or is a directory, try to find the JAR in target
+                    if (reactorArtifactFile == null || !reactorArtifactFile.exists() || reactorArtifactFile.isDirectory()) {
+                        // Try to find the JAR in the target directory
+                        File targetDir = new File(reactorModule.getBasedir(), "target");
+                        String expectedJarName = reactorModule.getBuild().getFinalName() + ".jar";
+                        File potentialJar = new File(targetDir, expectedJarName);
+                        
+                        if (potentialJar.exists() && potentialJar.isFile()) {
+                            reactorArtifactFile = potentialJar;
+                            getLog().info("Processing reactor module JAR: " + artifactKey);
+                        } else {
+                            getLog().debug("Reactor module JAR not found: " + potentialJar.getAbsolutePath() + 
+                                         ". Run 'mvn package' first to build reactor modules.");
+                            continue;
+                        }
+                    } else {
+                        getLog().info("Processing reactor module: " + artifactKey);
+                    }
+                    
+                    // Get metadata for this reactor module using the reactor project directly
+                    ClassportInfo meta = getMetadataForReactorModule(artifact, reactorModule);
+                    
+                    // Determine the target path in classport-files
+                    String artefactPath = getArtefactPath(artifact, true);
+                    File artefactFullPath = new File(localrepoRoot + "/" + artefactPath);
+                    
+                    // Embed metadata in the reactor module artifact
+                    JarHelper pkgr = new JarHelper(reactorArtifactFile,
+                            artefactFullPath,
+                            /* overwrite target if exists? */ true);
+                    pkgr.embed(meta);
+                    
+                    // Copy the POM file
+                    File pomFile = reactorModule.getFile();
+                    File pomDestFile = new File(artefactFullPath.getAbsolutePath().replace(".jar", ".pom"));
+                    if (pomFile != null && pomFile.isFile() && !pomDestFile.exists()) {
+                        Files.copy(Path.of(pomFile.getAbsolutePath()),
+                                  Path.of(pomDestFile.getAbsolutePath()));
+                    }
+                    
+                    getLog().info("Embedded reactor module artifact to: " + artefactFullPath);
+                } catch (IOException e) {
+                    getLog().error("Failed to process reactor module " + artifactKey + ": " + e);
+                }
+            }
+        }
     }
 }
