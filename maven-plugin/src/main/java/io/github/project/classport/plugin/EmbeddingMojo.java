@@ -97,6 +97,32 @@ public class EmbeddingMojo
                 + ":" + a.getVersion();
     }
 
+    /**
+     * Generate a simple key for identifying a reactor module by its GAV coordinates.
+     * This is used for quick lookup in maps and sets.
+     */
+    private String getArtifactKey(MavenProject project) {
+        return project.getGroupId() + ":" + 
+               project.getArtifactId() + ":" + 
+               project.getVersion();
+    }
+
+    /**
+     * Generate a simple key for identifying an artifact by its GAV coordinates.
+     */
+    private String getArtifactKey(Artifact artifact) {
+        return artifact.getGroupId() + ":" + 
+               artifact.getArtifactId() + ":" + 
+               artifact.getVersion();
+    }
+
+    /**
+     * Check if an artifact file is invalid (null, doesn't exist, or is a directory).
+     */
+    private boolean isArtifactFileInvalid(File file) {
+        return file == null || !file.exists() || file.isDirectory();
+    }
+
     private void embedDirectory(Artifact a) throws IOException, MojoExecutionException {
         embedDirectory(a, a.getFile());
     }
@@ -147,19 +173,14 @@ public class EmbeddingMojo
         Set<String> reactorArtifactKeys = new HashSet<>();
         if (session.getProjects() != null && session.getProjects().size() > 1) {
             for (MavenProject reactorProject : session.getProjects()) {
-                String key = reactorProject.getGroupId() + ":" + 
-                            reactorProject.getArtifactId() + ":" + 
-                            reactorProject.getVersion();
-                reactorArtifactKeys.add(key);
+                reactorArtifactKeys.add(getArtifactKey(reactorProject));
             }
         }
 
         getLog().info("Processing dependencies");
         for (Artifact artifact : dependencyArtifacts) {
             // Skip reactor modules in this loop, they will be processed separately
-            String artifactKey = artifact.getGroupId() + ":" + 
-                                artifact.getArtifactId() + ":" + 
-                                artifact.getVersion();
+            String artifactKey = getArtifactKey(artifact);
             if (reactorArtifactKeys.contains(artifactKey)) {
                 getLog().debug("Skipping reactor module " + artifactKey + " in regular dependency processing");
                 continue;
@@ -295,18 +316,13 @@ public class EmbeddingMojo
         // Build a map of reactor artifacts by their coordinates
         Map<String, MavenProject> reactorArtifacts = new HashMap<>();
         for (MavenProject reactorProject : reactorProjects) {
-            String key = reactorProject.getGroupId() + ":" + 
-                        reactorProject.getArtifactId() + ":" + 
-                        reactorProject.getVersion();
-            reactorArtifacts.put(key, reactorProject);
+            reactorArtifacts.put(getArtifactKey(reactorProject), reactorProject);
         }
         
         // Check each dependency to see if it's a reactor module
         Set<Artifact> dependencyArtifacts = project.getArtifacts();
         for (Artifact artifact : dependencyArtifacts) {
-            String artifactKey = artifact.getGroupId() + ":" + 
-                                artifact.getArtifactId() + ":" + 
-                                artifact.getVersion();
+            String artifactKey = getArtifactKey(artifact);
             
             MavenProject reactorModule = reactorArtifacts.get(artifactKey);
             if (reactorModule != null) {
@@ -319,7 +335,7 @@ public class EmbeddingMojo
                     File reactorArtifactFile = reactorModule.getArtifact().getFile();
                     
                     // If artifact file is not set or is a directory, try to find the JAR in target
-                    if (reactorArtifactFile == null || !reactorArtifactFile.exists() || reactorArtifactFile.isDirectory()) {
+                    if (isArtifactFileInvalid(reactorArtifactFile)) {
                         // Try to find the JAR in the target directory
                         File targetDir = new File(reactorModule.getBasedir(), "target");
                         String expectedJarName = reactorModule.getBuild().getFinalName() + ".jar";
@@ -350,11 +366,20 @@ public class EmbeddingMojo
                             /* overwrite target if exists? */ true);
                     pkgr.embed(meta);
                     
-                    // Copy the POM file
+                    // Copy the POM file with proper error handling
                     File pomFile = reactorModule.getFile();
                     File pomDestFile = new File(artefactFullPath.getAbsolutePath().replace(".jar", ".pom"));
-                    if (pomFile != null && pomFile.isFile() && !pomDestFile.exists()) {
-                        Files.copy(pomFile.toPath(), pomDestFile.toPath());
+                    if (pomFile != null && pomFile.isFile()) {
+                        // Ensure the destination directory exists
+                        pomDestFile.getParentFile().mkdirs();
+                        
+                        if (!pomDestFile.exists()) {
+                            try {
+                                Files.copy(pomFile.toPath(), pomDestFile.toPath());
+                            } catch (IOException copyError) {
+                                getLog().warn("Failed to copy POM file for reactor module " + artifactKey + ": " + copyError.getMessage());
+                            }
+                        }
                     }
                     
                     getLog().info("Embedded reactor module artifact to: " + artefactFullPath);
