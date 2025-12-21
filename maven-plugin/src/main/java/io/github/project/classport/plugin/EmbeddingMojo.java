@@ -10,6 +10,10 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -140,7 +144,7 @@ public class EmbeddingMojo
         }
 
         // Build a map of reactor artifacts for quick lookup
-        java.util.Set<String> reactorArtifactKeys = new java.util.HashSet<>();
+        Set<String> reactorArtifactKeys = new HashSet<>();
         if (session.getProjects() != null && session.getProjects().size() > 1) {
             for (MavenProject reactorProject : session.getProjects()) {
                 String key = reactorProject.getGroupId() + ":" + 
@@ -286,10 +290,10 @@ public class EmbeddingMojo
         getLog().info("Processing reactor modules for multi-module support");
         
         // Get all reactor projects
-        java.util.List<MavenProject> reactorProjects = session.getProjects();
+        List<MavenProject> reactorProjects = session.getProjects();
         
         // Build a map of reactor artifacts by their coordinates
-        java.util.Map<String, MavenProject> reactorArtifacts = new java.util.HashMap<>();
+        Map<String, MavenProject> reactorArtifacts = new HashMap<>();
         for (MavenProject reactorProject : reactorProjects) {
             String key = reactorProject.getGroupId() + ":" + 
                         reactorProject.getArtifactId() + ":" + 
@@ -350,8 +354,7 @@ public class EmbeddingMojo
                     File pomFile = reactorModule.getFile();
                     File pomDestFile = new File(artefactFullPath.getAbsolutePath().replace(".jar", ".pom"));
                     if (pomFile != null && pomFile.isFile() && !pomDestFile.exists()) {
-                        Files.copy(Path.of(pomFile.getAbsolutePath()),
-                                  Path.of(pomDestFile.getAbsolutePath()));
+                        Files.copy(pomFile.toPath(), pomDestFile.toPath());
                     }
                     
                     getLog().info("Embedded reactor module artifact to: " + artefactFullPath);
