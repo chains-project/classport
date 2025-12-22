@@ -5,8 +5,10 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-
 public class AnnotationConstantPool {
+    private static final String CLASSPORT_DESCRIPTOR =
+            String.format("L%s;", ClassportInfo.class.getName().replace('.', '/'));
+
     private ClassportInfo annotationInfo;
 
     public AnnotationConstantPool(ClassportInfo annotationInfo) {
@@ -21,7 +23,7 @@ public class AnnotationConstantPool {
         try {
             int entryCount = 0;
             // Annotation type descriptor
-            writeUtf8Entry(dos, String.format("L%s;", ClassportInfo.class.getName().replace('.', '/')));
+            writeUtf8Entry(dos, CLASSPORT_DESCRIPTOR);
             entryCount++;
 
             // Group (key)
@@ -104,19 +106,10 @@ public class AnnotationConstantPool {
             byte[] existingCpData = new byte[cpEnd - cpStart];
             originalBuffer.position(cpStart);
             originalBuffer.get(existingCpData);
-            
+
             int rvaUtf8Index = findUtf8InConstantPool(existingCpData, originalConstantPoolCount - 1, "RuntimeVisibleAnnotations");
             boolean rvaExists = rvaUtf8Index > 0;
 
-            // check if ClassportInfo is already in the constant pool
-            int classportInfoIndex = findUtf8InConstantPool(existingCpData, originalConstantPoolCount - 1, String.format("L%s;", ClassportInfo.class.getName().replace('.', '/')));
-            boolean classportInfoExists = classportInfoIndex > 0;
-            if (classportInfoExists) {
-                // we don't want duplicate classport info entries
-                // so we return the original bytes
-                return originalBytes;
-            }
-            
             int newConstantPoolCount = originalConstantPoolCount + cpd.entryCount();
             if (!rvaExists) {
                 newConstantPoolCount++; // add one for "RuntimeVisibleAnnotations"
@@ -160,7 +153,7 @@ public class AnnotationConstantPool {
                     byte[] attrData = new byte[attrLen];
                     originalBuffer.get(attrData);
                     
-                    if (i == rvaIndex) {
+                    if (i == rvaIndex && !hasClassportAnnotation(originalBytes, attrData)) {
                         // Merge annotation
                         dos.writeShort(nameIndex);
                         byte[] merged = mergeAnnotation(attrData, indices);
@@ -280,6 +273,61 @@ public class AnnotationConstantPool {
         out.writeShort(nameIndex);
         out.writeByte('s'); // string tag
         out.writeShort(valueIndex);
+    }
+
+    private boolean hasClassportAnnotation(byte[] classBytes, byte[] rvaAttrData) {
+        ByteBuffer buffer = ByteBuffer.wrap(rvaAttrData);
+        int annotationCount = buffer.getShort() & 0xFFFF;
+
+        for (int i = 0; i < annotationCount; i++) {
+            int typeIndex = buffer.getShort() & 0xFFFF;
+            String descriptor = getCPString(classBytes, typeIndex);
+            if (CLASSPORT_DESCRIPTOR.equals(descriptor)) {
+                return true;
+            }
+            skipAnnotation(buffer);
+        }
+        return false;
+    }
+    
+    private void skipAnnotation(ByteBuffer buffer) {
+        if (buffer.remaining() < 2) return;
+        int numPairs = buffer.getShort() & 0xFFFF;
+        for (int j = 0; j < numPairs; j++) {
+            if (buffer.remaining() < 2) return;
+            buffer.getShort(); // skip element_name_index
+            skipElementValue(buffer); // skip element_value
+        }
+    }
+    
+    private void skipElementValue(ByteBuffer buffer) {
+        if (buffer.remaining() < 1) return;
+        byte tag = buffer.get();
+        switch (tag) {
+            case 'B': case 'C': case 'D': case 'F': case 'I': case 'J': case 'S': case 'Z': case 's': // primitive or string
+                if (buffer.remaining() < 2) return;
+                buffer.getShort(); // const_value_index
+                break;
+            case 'e': // enum
+                if (buffer.remaining() < 4) return;
+                buffer.getShort(); // type_name_index
+                buffer.getShort(); // const_name_index
+                break;
+            case 'c': // class
+                if (buffer.remaining() < 2) return;
+                buffer.getShort(); // class_info_index
+                break;
+            case '@': // annotation (recursive)
+                skipAnnotation(buffer);
+                break;
+            case '[': // array
+                if (buffer.remaining() < 2) return;
+                int numValues = buffer.getShort() & 0xFFFF;
+                for (int k = 0; k < numValues; k++) {
+                    skipElementValue(buffer);
+                }
+                break;
+        }
     }
 
     private int findRuntimeVisibleAnnotationsAttribute(byte[] classBytes, int attrStartPos, int attrCount) {
