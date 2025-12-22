@@ -16,6 +16,17 @@ public class AnnotationConstantPool {
     }
 
     public record ConstantPoolData(int entryCount, byte[] data) {}
+    
+    private record ClassportInfoIndices(
+        int classportInfoIndex,
+        int groupIndex,
+        int versionIndex,
+        int idIndex,
+        int sourceProjectIdIndex,
+        int childIdsIndex,
+        int artefactIndex,
+        int isDirectDependencyIndex
+    ) {}
 
     public ConstantPoolData getNewEntries() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -110,6 +121,19 @@ public class AnnotationConstantPool {
             int rvaUtf8Index = findUtf8InConstantPool(existingCpData, originalConstantPoolCount - 1, "RuntimeVisibleAnnotations");
             boolean rvaExists = rvaUtf8Index > 0;
 
+            // check if ClassportInfo is already in the constant pool (all in one iteration)
+            // This is a hack because there can be a case where all these constants are present in the constant pool
+            // but the ClassportInfo is not present
+            ClassportInfoIndices existingClassportIndices = findClassportInfoIndices(existingCpData, originalConstantPoolCount - 1);
+            
+            if (existingClassportIndices.classportInfoIndex > 0 && existingClassportIndices.groupIndex > 0 && existingClassportIndices.versionIndex > 0 && 
+                existingClassportIndices.idIndex > 0 && existingClassportIndices.sourceProjectIdIndex > 0 && existingClassportIndices.childIdsIndex > 0 && 
+                existingClassportIndices.artefactIndex > 0 && existingClassportIndices.isDirectDependencyIndex > 0) {
+                // we don't want duplicate classport info entries
+                // so we return the original bytes
+                return originalBytes;
+            }
+
             int newConstantPoolCount = originalConstantPoolCount + cpd.entryCount();
             if (!rvaExists) {
                 newConstantPoolCount++; // add one for "RuntimeVisibleAnnotations"
@@ -153,7 +177,7 @@ public class AnnotationConstantPool {
                     byte[] attrData = new byte[attrLen];
                     originalBuffer.get(attrData);
                     
-                    if (i == rvaIndex && !hasClassportAnnotation(originalBytes, attrData)) {
+                    if (i == rvaIndex) {
                         // Merge annotation
                         dos.writeShort(nameIndex);
                         byte[] merged = mergeAnnotation(attrData, indices);
@@ -275,61 +299,6 @@ public class AnnotationConstantPool {
         out.writeShort(valueIndex);
     }
 
-    private boolean hasClassportAnnotation(byte[] classBytes, byte[] rvaAttrData) {
-        ByteBuffer buffer = ByteBuffer.wrap(rvaAttrData);
-        int annotationCount = buffer.getShort() & 0xFFFF;
-
-        for (int i = 0; i < annotationCount; i++) {
-            int typeIndex = buffer.getShort() & 0xFFFF;
-            String descriptor = getCPString(classBytes, typeIndex);
-            if (CLASSPORT_DESCRIPTOR.equals(descriptor)) {
-                return true;
-            }
-            skipAnnotation(buffer);
-        }
-        return false;
-    }
-    
-    private void skipAnnotation(ByteBuffer buffer) {
-        if (buffer.remaining() < 2) return;
-        int numPairs = buffer.getShort() & 0xFFFF;
-        for (int j = 0; j < numPairs; j++) {
-            if (buffer.remaining() < 2) return;
-            buffer.getShort(); // skip element_name_index
-            skipElementValue(buffer); // skip element_value
-        }
-    }
-    
-    private void skipElementValue(ByteBuffer buffer) {
-        if (buffer.remaining() < 1) return;
-        byte tag = buffer.get();
-        switch (tag) {
-            case 'B': case 'C': case 'D': case 'F': case 'I': case 'J': case 'S': case 'Z': case 's': // primitive or string
-                if (buffer.remaining() < 2) return;
-                buffer.getShort(); // const_value_index
-                break;
-            case 'e': // enum
-                if (buffer.remaining() < 4) return;
-                buffer.getShort(); // type_name_index
-                buffer.getShort(); // const_name_index
-                break;
-            case 'c': // class
-                if (buffer.remaining() < 2) return;
-                buffer.getShort(); // class_info_index
-                break;
-            case '@': // annotation (recursive)
-                skipAnnotation(buffer);
-                break;
-            case '[': // array
-                if (buffer.remaining() < 2) return;
-                int numValues = buffer.getShort() & 0xFFFF;
-                for (int k = 0; k < numValues; k++) {
-                    skipElementValue(buffer);
-                }
-                break;
-        }
-    }
-
     private int findRuntimeVisibleAnnotationsAttribute(byte[] classBytes, int attrStartPos, int attrCount) {
         ByteBuffer buffer = ByteBuffer.wrap(classBytes);
         buffer.position(attrStartPos);
@@ -416,6 +385,92 @@ public class AnnotationConstantPool {
                 out.write(attrData);
             }
         }
+    }
+
+    private ClassportInfoIndices findClassportInfoIndices(byte[] cpData, int cpCount) {
+        ByteBuffer buffer = ByteBuffer.wrap(cpData);
+        int currentIndex = 1; // Constant pool indices start at 1
+        
+        int classportInfoIndex = -1;
+        int groupIndex = -1;
+        int versionIndex = -1;
+        int idIndex = -1;
+        int sourceProjectIdIndex = -1;
+        int childIdsIndex = -1;
+        int artefactIndex = -1;
+        int isDirectDependencyIndex = -1;
+        
+        // Check if we've found all strings to potentially exit early
+        boolean allFound = false;
+        
+        for (int i = 0; i < cpCount && !allFound; i++) {
+            int tag = buffer.get() & 0xFF;
+            
+            switch (tag) {
+                case 1: // UTF8
+                    int len = buffer.getShort() & 0xFFFF;
+                    byte[] utf8Bytes = new byte[len];
+                    buffer.get(utf8Bytes);
+                    String utf8String = new String(utf8Bytes, java.nio.charset.StandardCharsets.UTF_8);
+                    
+                    // Check against all target strings
+                    if (utf8String.equals(CLASSPORT_DESCRIPTOR)) {
+                        classportInfoIndex = currentIndex;
+                    } else if (utf8String.equals("group")) {
+                        groupIndex = currentIndex;
+                    } else if (utf8String.equals("version")) {
+                        versionIndex = currentIndex;
+                    } else if (utf8String.equals("id")) {
+                        idIndex = currentIndex;
+                    } else if (utf8String.equals("sourceProjectId")) {
+                        sourceProjectIdIndex = currentIndex;
+                    } else if (utf8String.equals("childIds")) {
+                        childIdsIndex = currentIndex;
+                    } else if (utf8String.equals("artefact")) {
+                        artefactIndex = currentIndex;
+                    } else if (utf8String.equals("isDirectDependency")) {
+                        isDirectDependencyIndex = currentIndex;
+                    }
+                    
+                    // Early exit if all found
+                    if (classportInfoIndex > 0 && groupIndex > 0 && versionIndex > 0 && 
+                        idIndex > 0 && sourceProjectIdIndex > 0 && childIdsIndex > 0 && 
+                        artefactIndex > 0 && isDirectDependencyIndex > 0) {
+                        allFound = true;
+                    }
+                    break;
+                case 3: case 4: // Integer, Float
+                    buffer.getInt();
+                    break;
+                case 5: case 6: // Long, Double
+                    buffer.getLong();
+                    i++; // takes 2 slots
+                    currentIndex++; // Long and Double take 2 constant pool slots
+                    break;
+                case 7: case 8: case 16: case 19: case 20: // Class, String, etc.
+                    buffer.getShort();
+                    break;
+                case 9: case 10: case 11: case 12: case 17: case 18: // Fieldref, etc.
+                    buffer.getInt();
+                    break;
+                case 15: // MethodHandle
+                    buffer.get();
+                    buffer.getShort();
+                    break;
+            }
+            currentIndex++;
+        }
+        
+        return new ClassportInfoIndices(
+            classportInfoIndex,
+            groupIndex,
+            versionIndex,
+            idIndex,
+            sourceProjectIdIndex,
+            childIdsIndex,
+            artefactIndex,
+            isDirectDependencyIndex
+        );
     }
 
     private int findUtf8InConstantPool(byte[] cpData, int cpCount, String target) {
