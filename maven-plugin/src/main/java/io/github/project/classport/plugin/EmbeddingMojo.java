@@ -108,6 +108,7 @@ public class EmbeddingMojo
         Files.walkFileTree(dirToWalk.toPath(), new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                getLog().debug("Processing file: " + file.getFileName());
                 try (FileInputStream in = new FileInputStream(file.toFile())) {
                     byte[] bytes = in.readAllBytes();
 

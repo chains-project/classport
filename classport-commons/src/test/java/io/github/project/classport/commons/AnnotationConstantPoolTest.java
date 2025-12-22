@@ -89,4 +89,28 @@ public class AnnotationConstantPoolTest {
         // assert
         assertArrayEquals(resultBytes, expectedBytes);
     }
+
+    @Test
+    void injectAnnotation_internalClassportClass() throws IOException {
+        // arrange
+        ClassportInfo annotationInfo = new ClassportHelper().getInstance(
+            "foo",
+            true,
+            "bar:jar:1.0.0",
+            "bar",
+            "foo",
+            "1.0.0",
+            new String[] {}
+        );
+        byte[] originalBytes = Files.readAllBytes(TEST_RESOURCES_DIR.resolve("ClassportInternal_original.class"));
+        byte[] expectedBytes = Files.readAllBytes(TEST_RESOURCES_DIR.resolve("ClassportInternal_annotated.class"));
+
+        // act
+        AnnotationConstantPool annotationConstantPool = new AnnotationConstantPool(annotationInfo);
+        byte[] resultBytes = annotationConstantPool.injectAnnotation(originalBytes, annotationConstantPool.getNewEntries());
+
+        // assert
+        assertArrayEquals(resultBytes, expectedBytes);
+       
+    }
 }
