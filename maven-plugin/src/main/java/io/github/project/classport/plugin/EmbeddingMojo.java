@@ -199,7 +199,6 @@ public class EmbeddingMojo
         getLog().info("Processing dependencies");
         for (Artifact artifact : dependencyArtifacts) {
             try {
-                System.out.println("Embedding artifact: " + artifact.getArtifactId());
                 embedArtifactIntoRepo(artifact, aggregatedRepoRoot);
             } catch (IOException e) {
                 getLog().error("Failed to embed metadata for " + artifact + ": " + e);
