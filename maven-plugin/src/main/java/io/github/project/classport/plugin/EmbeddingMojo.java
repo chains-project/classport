@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Set;
@@ -33,7 +35,7 @@ import io.github.project.classport.commons.ClassportHelper;
 import io.github.project.classport.commons.ClassportInfo;
 import io.github.project.classport.commons.Utility;
 
-@Mojo(name = "embed", defaultPhase = LifecyclePhase.GENERATE_RESOURCES, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
+@Mojo(name = "embed", defaultPhase = LifecyclePhase.COMPILE, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
 public class EmbeddingMojo
         extends AbstractMojo {
     /**
@@ -93,10 +95,6 @@ public class EmbeddingMojo
                 + ":" + a.getVersion();
     }
 
-    private void embedDirectory(Artifact a) throws IOException, MojoExecutionException {
-        embedDirectory(a, a.getFile());
-    }
-
     private void embedDirectory(Artifact a, File dirToWalk) throws IOException, MojoExecutionException {
         ClassportInfo metadata = getMetadata(a);
         AnnotationConstantPool acp = new AnnotationConstantPool(metadata);
@@ -125,45 +123,84 @@ public class EmbeddingMojo
         });
     }
 
+    /**
+     * Root directory (shared by all modules) where embedded artefacts are written
+     * in Maven-repository layout.
+     * We keep the name "classport-files" to maintain backward compatibility with the previous version of the plugin.
+     */
+    private File getAggregatedRepoRoot() {
+        File topLevelBaseDir = session.getTopLevelProject().getBasedir();
+        return new File(topLevelBaseDir, "classport-files");
+    }
+
+    /**
+     * Destination path (jar) inside the aggregated repository for the given
+     * artifact.
+     */
+    private File getRepoPathForArtifact(Artifact artifact, File repoRoot) {
+        String groupPath = artifact.getGroupId().replace('.', File.separatorChar);
+        File baseDir = Paths.get(repoRoot.getAbsolutePath(), groupPath, artifact.getArtifactId(), artifact.getVersion()).toFile();
+        String classifierPart = artifact.getClassifier() != null ? "-" + artifact.getClassifier() : "";
+        String extension = artifact.getArtifactHandler().getExtension();
+        return Paths.get(baseDir.getAbsolutePath(), artifact.getArtifactId() + "-" + artifact.getVersion() + classifierPart + "." + extension).toFile();
+    }
+
+    /**
+     * Copy an artifact into the aggregated repository and embed metadata into the
+     * copy, leaving the original (e.g. ~/.m2) untouched.
+     */
+    private void embedArtifactIntoRepo(Artifact artifact, File repoRoot)
+            throws IOException, MojoExecutionException {
+        File artifactFile = artifact.getFile();
+        if (artifactFile == null || !artifactFile.exists()) {
+            getLog().warn("Artifact file not found for " + artifact + " (file: "
+                    + (artifactFile != null ? artifactFile.getAbsolutePath() : "null") + ")");
+            return;
+        }
+
+        if (artifactFile.isDirectory()) {
+            getLog().info(String.format("%s is a directory (most likely target/classes). We don't embed it again since it was already embedded in reactor.", artifactFile.getAbsolutePath()));
+            return;
+        }
+
+        File destJar = getRepoPathForArtifact(artifact, repoRoot);
+        destJar.getParentFile().mkdirs();
+
+        Files.copy(artifactFile.toPath(), destJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+        ClassportInfo meta = getMetadata(artifact);
+        File tempJar = new File(destJar.getParent(), destJar.getName() + ".tmp");
+        JarHelper pkgr = new JarHelper(destJar, tempJar, true);
+        pkgr.embed(meta);
+
+        Files.delete(destJar.toPath());
+        Files.move(tempJar.toPath(), destJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+        getLog().info("Embedded artifact into aggregated repo: " + destJar.getAbsolutePath());
+    }
+
+    @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         Set<Artifact> dependencyArtifacts = project.getArtifacts();
 
-        // Each module gets its own classport directory
-        File localrepoRoot = new File(project.getBasedir() + "/classport-files");
-        localrepoRoot.mkdir();
+        // Shared repository for all modules
+        File aggregatedRepoRoot = getAggregatedRepoRoot();
+        aggregatedRepoRoot.mkdirs();
 
-        getLog().info("Processing project class files");
+        getLog().info("Embedding metadata into compiled classes for module: " + project.getArtifactId());
         try {
             embedDirectory(project.getArtifact(), classesDirectory);
+            getLog().info("Successfully embedded metadata in compiled classes");
         } catch (IOException e) {
-            getLog().error("Failed to embed annotations in project class files: " + e);
+            getLog().error("Failed to embed annotations in project class files: " + e.getMessage(), e);
+            throw new MojoExecutionException("Failed to embed annotations in project class files", e);
         }
 
         getLog().info("Processing dependencies");
         for (Artifact artifact : dependencyArtifacts) {
             try {
-                ClassportInfo meta = getMetadata(artifact);
-                String artefactPath = getArtefactPath(artifact, true);
-                File artefactFullPath = new File(localrepoRoot + "/" + artefactPath);
-                getLog().debug("Embedding metadata for " + artifact);
-                if (artifact.getFile().isFile()) {
-                    JarHelper pkgr = new JarHelper(artifact.getFile(),
-                            artefactFullPath,
-                            /* overwrite target if exists? */ true);
-                    pkgr.embed(meta);
-
-                    // Also copy POMs to classport dir
-                    File pomFile = new File(artifact.getFile().getAbsolutePath().replace(".jar", ".pom"));
-                    File pomDestFile = new File(artefactFullPath.getAbsolutePath().replace(".jar", ".pom"));
-                    if (pomFile.isFile() && !pomDestFile.exists())
-                        Files.copy(Path.of(pomFile.getAbsolutePath()),
-                                Path.of(pomDestFile.getAbsolutePath()));
-                } else if (artifact.getFile().isDirectory()) {
-                    embedDirectory(artifact);
-                } else {
-                    getLog().warn("Skipping " + artifact.getArtifactId()
-                            + " since it does not seem to reside in either a file nor a directory");
-                }
+                System.out.println("Embedding artifact: " + artifact.getArtifactId());
+                embedArtifactIntoRepo(artifact, aggregatedRepoRoot);
             } catch (IOException e) {
                 getLog().error("Failed to embed metadata for " + artifact + ": " + e);
             }
@@ -194,30 +231,4 @@ public class EmbeddingMojo
                         .collect(Collectors.toList()).toArray(String[]::new));
     }
 
-    /**
-     * Get an artefact's path relative to the repository root.
-     * If resolveSnapshotVersion is true, we get the specific snapshot
-     * version instead of just "-SNAPSHOT". This may default to true
-     * in the future, as this seems to be Maven's default behaviour.
-     *
-     * TODO: Get the regular path (~/.m2/repository/...) and remove the
-     * m2/repo-part instead?
-     *
-     * @see <a href="https://maven.apache.org/repositories/layout.html">Maven
-     *      docs on repository structure</a>
-     */
-    private String getArtefactPath(Artifact a, boolean resolveSnapshotVersion) {
-        String classifier = a.getClassifier();
-        if (classifier == null)
-            classifier = "";
-        else
-            classifier = "-" + classifier;
-
-        return String.format("%s/%s/%s/%s-%s%s.%s",
-                a.getGroupId().replace('.', '/'),
-                a.getArtifactId(),
-                a.getBaseVersion(), // This seems to always be the base version
-                a.getArtifactId(), (resolveSnapshotVersion ? a.getVersion() : a.getBaseVersion()), classifier,
-                "jar" /* TODO support more extensions */);
-    }
 }
