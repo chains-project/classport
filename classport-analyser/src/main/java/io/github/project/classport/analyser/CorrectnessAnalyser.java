@@ -80,26 +80,68 @@ public class CorrectnessAnalyser {
 
     private static void printDepList(JarFile jar) {
         HashMap<String, ClassportInfo> sbom = getSBOM(jar);
-        String project = "";
+        String mainProjectId = null;
         boolean usesDependencies = false;
+        
+        // Get Main-Class from manifest and find its sourceProjectId
+        try {
+            String mainClass = jar.getManifest().getMainAttributes().getValue("Main-Class");
+            if (mainClass == null) {
+                throw new RuntimeException("JAR file manifest does not contain a 'Main-Class' attribute.");
+            }
+            
+            mainClass = mainClass.replace('.', '/'); // Convert to internal name format
+            
+            // Find the Main-Class in the jar and get its sourceProjectId
+            Enumeration<JarEntry> entries = jar.entries();
+            boolean foundMainClass = false;
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                PushbackInputStream in = new PushbackInputStream(jar.getInputStream(entry), 4);
+                
+                byte[] firstBytes = in.readNBytes(4);
+                in.unread(firstBytes);
+                
+                // We only care about class files
+                if (Arrays.equals(firstBytes, Utility.MAGIC_BYTES)) {
+                    byte[] classFileBytes = in.readAllBytes();
+                    ClassInfo info = ClassNameExtractor.getInfo(classFileBytes);
+                    
+                    if (info.name.equals(mainClass)) {
+                        foundMainClass = true;
+                        ClassportInfo ann = AnnotationReader.getAnnotationValues(classFileBytes);
+                        if (ann == null) {
+                            throw new RuntimeException("Main-Class '" + mainClass.replace('/', '.') + "' does not have a ClassportInfo annotation.");
+                        }
+                        mainProjectId = ann.sourceProjectId();
+                        break;
+                    }
+                }
+            }
+            
+            if (!foundMainClass) {
+                throw new RuntimeException("Main-Class '" + mainClass.replace('/', '.') + "' not found in JAR file.");
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Error while reading manifest: " + e.getMessage(), e);
+        }
+        
+        if (sbom.isEmpty()) {
+            System.out.println("No annotations found");
+            return;
+        }
+        
+        // Compare all classes' id() to the main project's sourceProjectId
         for (ClassportInfo c : sbom.values()) {
-            project = c.sourceProjectId();
-            if (!c.id().equals(c.sourceProjectId())) {
+            if (!c.id().equals(mainProjectId)) {
                 usesDependencies = true;
                 System.out.println(c.id());
             }
         }
 
-        if (sbom.isEmpty())
-            System.out.println("No annotations found");
-        else if (!usesDependencies)
-            // `project` will always be assigned if sbom is non-empty
-            System.out.println("No dependencies found (all class files belong to " + project + ")");
+        if (!usesDependencies)
+            System.out.println("No dependencies found (all class files belong to " + mainProjectId + ")");
 
-    }
-
-    private static final boolean generateTestJar(JarFile jar, String outFileName) {
-        return generateTestJar(jar, outFileName, List.of());
     }
 
     /*
