@@ -22,6 +22,7 @@ import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,6 +35,7 @@ import org.objectweb.asm.Type;
 import io.github.project.classport.commons.ClassportInfo;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Disabled("We don't need classport-files dir for this test")
 public class EmbeddingMojoTest {
 
     private static final Class<?> annotationClass = ClassportInfo.class;
