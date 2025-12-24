@@ -1,17 +1,9 @@
 package io.github.project.classport.instrumentation;
 
-import io.github.project.classport.commons.AnnotationReader;
-import io.github.project.classport.commons.ClassportInfo;
-import io.github.project.classport.instrumentation.granularity.DependencyInvocation;
-import io.github.project.classport.instrumentation.granularity.Granularity;
-import io.github.project.classport.instrumentation.granularity.MethodInvocation;
-import io.github.project.classport.instrumentation.granularity.RecordingStrategy;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.ClassWriter;
-
+import java.io.IOException;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.ProtectionDomain;
@@ -21,6 +13,17 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
+
+import io.github.project.classport.commons.AnnotationReader;
+import io.github.project.classport.commons.ClassportInfo;
+import io.github.project.classport.instrumentation.granularity.DependencyInvocation;
+import io.github.project.classport.instrumentation.granularity.Granularity;
+import io.github.project.classport.instrumentation.granularity.MethodInvocation;
+import io.github.project.classport.instrumentation.granularity.RecordingStrategy;
 
 public class Agent {
 	private static final Map<String, ClassportInfo> annotationCache = new ConcurrentHashMap<>();
@@ -48,6 +51,11 @@ public class Agent {
 			}
 			System.out.println("Output file: " + OUTPUT_FILE);
 			System.out.println("Output path: " + OUTPUT_PATH_DIR);
+		    try {
+				Files.createDirectories(OUTPUT_PATH_DIR);
+			} catch (IOException e) {
+				System.err.println("Error creating output directory: " + e.getMessage());
+			}
 			Path outputPath = OUTPUT_PATH_DIR.resolve(OUTPUT_FILE);
 
 			recordingStrategy = switch (granularity) {
