@@ -84,7 +84,7 @@ public class CorrectnessAnalyser {
         boolean usesDependencies = false;
         for (ClassportInfo c : sbom.values()) {
             project = c.sourceProjectId();
-            if (c.id() != c.sourceProjectId()) {
+            if (!c.id().equals(c.sourceProjectId())) {
                 usesDependencies = true;
                 System.out.println(c.id());
             }
