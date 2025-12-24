@@ -85,6 +85,9 @@ class JarHelper {
         
         target.getParentFile().mkdirs();
         
+        AnnotationConstantPool acp = new AnnotationConstantPool(metadata);
+        AnnotationConstantPool.ConstantPoolData cpData = acp.getNewEntries();
+        
         Path inJar = source.toPath();
         Path outJar = target.toPath();
         
@@ -118,8 +121,8 @@ class JarHelper {
                 byte[] entryBytes = readEntryBytes(jis, buffer);
                 
                 if (shouldReplace(entry, entryBytes)) {
-                    MetadataAdder adder = new MetadataAdder(entryBytes);
-                    jos.write(adder.add(metadata));
+                    byte[] replacementBytes = replacementBytes(entryBytes, acp, cpData);
+                    jos.write(replacementBytes);
                 } else {
                     // Copy entry as-is
                     jos.write(entryBytes);
