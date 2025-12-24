@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -34,7 +33,7 @@ import io.github.project.classport.commons.ClassportHelper;
 import io.github.project.classport.commons.ClassportInfo;
 import io.github.project.classport.commons.Utility;
 
-@Mojo(name = "embed", defaultPhase = LifecyclePhase.COMPILE, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
+@Mojo(name = "embed", defaultPhase = LifecyclePhase.PROCESS_CLASSES, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
 public class EmbeddingMojo
         extends AbstractMojo {
     /**
@@ -122,32 +121,10 @@ public class EmbeddingMojo
     }
 
     /**
-     * Root directory (shared by all modules) where embedded artefacts are written
-     * in Maven-repository layout.
-     * We keep the name "classport-files" to maintain backward compatibility with the previous version of the plugin.
+     * Embed metadata directly into an artifact JAR file in-place.
+     * This modifies the artifact in the local Maven repository.
      */
-    private File getAggregatedRepoRoot() {
-        File topLevelBaseDir = session.getTopLevelProject().getBasedir();
-        return new File(topLevelBaseDir, "classport-files");
-    }
-
-    /**
-     * Destination path (jar) inside the aggregated repository for the given
-     * artifact.
-     */
-    private File getRepoPathForArtifact(Artifact artifact, File repoRoot) {
-        String groupPath = artifact.getGroupId().replace('.', File.separatorChar);
-        File baseDir = Paths.get(repoRoot.getAbsolutePath(), groupPath, artifact.getArtifactId(), artifact.getVersion()).toFile();
-        String classifierPart = artifact.getClassifier() != null ? "-" + artifact.getClassifier() : "";
-        String extension = artifact.getArtifactHandler().getExtension();
-        return Paths.get(baseDir.getAbsolutePath(), artifact.getArtifactId() + "-" + artifact.getVersion() + classifierPart + "." + extension).toFile();
-    }
-
-    /**
-     * Copy an artifact into the aggregated repository and embed metadata into the
-     * copy, leaving the original (e.g. ~/.m2) untouched.
-     */
-    private void embedArtifactIntoRepo(Artifact artifact, File repoRoot)
+    private void embedArtifactInPlace(Artifact artifact)
             throws IOException, MojoExecutionException {
         File artifactFile = artifact.getFile();
         if (artifactFile == null || !artifactFile.exists()) {
@@ -161,29 +138,20 @@ public class EmbeddingMojo
             return;
         }
 
-        File destJar = getRepoPathForArtifact(artifact, repoRoot);
-        destJar.getParentFile().mkdirs();
-
-        Files.copy(artifactFile.toPath(), destJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
-
         ClassportInfo meta = getMetadata(artifact);
-        File tempJar = new File(destJar.getParent(), destJar.getName() + ".tmp");
-        JarHelper pkgr = new JarHelper(destJar, tempJar, true);
+        File tempJar = new File(artifactFile.getParent(), artifactFile.getName() + ".tmp");
+        JarHelper pkgr = new JarHelper(artifactFile, tempJar, true);
         pkgr.embed(meta);
 
-        Files.delete(destJar.toPath());
-        Files.move(tempJar.toPath(), destJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        Files.delete(artifactFile.toPath());
+        Files.move(tempJar.toPath(), artifactFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-        getLog().info("Embedded artifact into aggregated repo: " + destJar.getAbsolutePath());
+        getLog().info("Embedded metadata into artifact: " + artifactFile.getAbsolutePath());
     }
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         Set<Artifact> dependencyArtifacts = project.getArtifacts();
-
-        // Shared repository for all modules
-        File aggregatedRepoRoot = getAggregatedRepoRoot();
-        aggregatedRepoRoot.mkdirs();
 
         getLog().info("Embedding metadata into compiled classes for module: " + project.getArtifactId());
         try {
@@ -197,7 +165,7 @@ public class EmbeddingMojo
         getLog().info("Processing dependencies");
         for (Artifact artifact : dependencyArtifacts) {
             try {
-                embedArtifactIntoRepo(artifact, aggregatedRepoRoot);
+                embedArtifactInPlace(artifact);
             } catch (IOException e) {
                 getLog().error("Failed to embed metadata for " + artifact + ": " + e);
             }
