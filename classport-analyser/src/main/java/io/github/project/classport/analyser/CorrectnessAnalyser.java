@@ -131,8 +131,6 @@ public class CorrectnessAnalyser {
             return;
         }
         
-        // Print the main project ID
-        System.out.println(mainProjectId);
         // Compare all classes' id() to the main project's sourceProjectId
         for (ClassportInfo c : sbom.values()) {
             if (!c.id().equals(mainProjectId)) {
