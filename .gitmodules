@@ -1,3 +1,6 @@
 [submodule "classport-experiments"]
 	path = classport-experiments
 	url = git@github.com:chains-project/classport-experiments.git
+[submodule ".github/workflows/projects/pdfbox-3.0.4"]
+	path = .github/workflows/projects/pdfbox-3.0.4
+	url = https://github.com/apache/pdfbox.git
