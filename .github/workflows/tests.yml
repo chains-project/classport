@@ -20,4 +20,4 @@ jobs:
       - name: Build project
         run: mvn install -DskipTests
       - name: Run tests
-        run: mvn test
+        run: mvn verify # Includes tests and integration tests

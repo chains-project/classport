@@ -52,6 +52,21 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>io.github.project</groupId>
+        <artifactId>classport-maven-plugin</artifactId>
+        <!-- I tried resource filtering here and mvn resources:resources work -->
+        <!-- However, it does not work when running the tests with ITF Maven Plugin -->
+        <!-- The ITF Maven Plugin still copies from src/test/resources-its to target/test-classes and not from target/test-classes (where the resources are actually filtered) -->
+        <!-- <version>${project.version}</version> -->
+        <executions>
+          <execution>
+            <goals>
+              <goal>embed</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
