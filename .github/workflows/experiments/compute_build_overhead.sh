@@ -12,6 +12,8 @@ fi
 PROGRAM=$1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOGS_DIR="$SCRIPT_DIR/build-logs"
+mkdir -p "$LOGS_DIR"
 
 case $PROGRAM in
   pdfbox)
@@ -64,7 +66,12 @@ esac
 cd "$PROJECT_DIR" || exit 1
 # Measure baseline build time
 echo "Measuring baseline build time..."
-BASELINE_TIME=$( { time mvn clean package -DskipTests; } 2>&1 | grep real | awk '{print $2}' )
+echo "::group::Baseline Build Logs"
+BASELINE_OUTPUT=$( { time mvn clean package -DskipTests 2>&1; } )
+echo "$BASELINE_OUTPUT"
+echo "$BASELINE_OUTPUT" > "$LOGS_DIR/${PROGRAM}-baseline-build.log"
+echo "::endgroup::"
+BASELINE_TIME=$(echo "$BASELINE_OUTPUT" | grep real | awk '{print $2}')
 
 cp $PROJECT_DIR/$POM_FILE $PROJECT_DIR/$POM_FILE.bak
 
@@ -73,7 +80,12 @@ echo "Adding classport-maven-plugin to pom.xml..."
 
 # Measure plugin execution time
 echo "Measuring plugin execution time..."
-PLUGIN_TIME=$( { time mvn clean package -DskipTests; } 2>&1 | grep real | awk '{print $2}' )
+echo "::group::Plugin Build Logs"
+PLUGIN_OUTPUT=$( { time mvn clean package -DskipTests 2>&1; } )
+echo "$PLUGIN_OUTPUT"
+echo "$PLUGIN_OUTPUT" > "$LOGS_DIR/${PROGRAM}-plugin-build.log"
+echo "::endgroup::"
+PLUGIN_TIME=$(echo "$PLUGIN_OUTPUT" | grep real | awk '{print $2}')
 
 mv $PROJECT_DIR/$POM_FILE.bak $PROJECT_DIR/$POM_FILE
 
@@ -91,3 +103,13 @@ echo "Plugin execution time: $PLUGIN_TIME"
 echo "Overhead introduced by the plugin: ${OVERHEAD}s"
 echo "Percentage overhead: ${PERCENTAGE_OVERHEAD}%"
 
+# Save summary to file
+SUMMARY_FILE="$LOGS_DIR/${PROGRAM}-summary.txt"
+cat > "$SUMMARY_FILE" << EOF
+Build Overhead Summary for $PROGRAM
+====================================
+Baseline build time: $BASELINE_TIME
+Plugin execution time: $PLUGIN_TIME
+Overhead introduced by the plugin: ${OVERHEAD}s
+Percentage overhead: ${PERCENTAGE_OVERHEAD}%
+EOF
