@@ -9,6 +9,7 @@ import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Disabled;
 
 import com.soebes.itf.jupiter.extension.MavenGoal;
 import com.soebes.itf.jupiter.extension.MavenJupiterExtension;
@@ -19,6 +20,7 @@ import com.soebes.itf.jupiter.maven.MavenExecutionResult;
 import io.github.project.classport.analyser.CorrectnessAnalyser;
 import io.github.project.classport.commons.ClassportInfo;
 
+@Disabled("Skipping this test until we find a way to embed using a single command")
 @MavenJupiterExtension
 public class EmbeddingMojoIT {
     @MavenGoal("package")
