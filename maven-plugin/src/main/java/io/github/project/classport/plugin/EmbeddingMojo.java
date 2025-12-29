@@ -34,7 +34,7 @@ import io.github.project.classport.commons.ClassportHelper;
 import io.github.project.classport.commons.ClassportInfo;
 import io.github.project.classport.commons.Utility;
 
-@Mojo(name = "embed", defaultPhase = LifecyclePhase.COMPILE, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
+@Mojo(name = "embed", defaultPhase = LifecyclePhase.PROCESS_CLASSES, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
 public class EmbeddingMojo
         extends AbstractMojo {
     /**
@@ -122,16 +122,6 @@ public class EmbeddingMojo
     }
 
     /**
-     * Root directory (shared by all modules) where embedded artefacts are written
-     * in Maven-repository layout.
-     * We keep the name "classport-files" to maintain backward compatibility with the previous version of the plugin.
-     */
-    private File getAggregatedRepoRoot() {
-        File topLevelBaseDir = session.getTopLevelProject().getBasedir();
-        return new File(topLevelBaseDir, "classport-files");
-    }
-
-    /**
      * Destination path (jar) inside the aggregated repository for the given
      * artifact.
      */
@@ -165,6 +155,7 @@ public class EmbeddingMojo
         destJar.getParentFile().mkdirs();
 
         Files.copy(artifactFile.toPath(), destJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        getLog().info(String.format("Copied artifact %s to %s", artifactFile.getAbsolutePath(), destJar.getAbsolutePath()));
 
         ClassportInfo meta = getMetadata(artifact);
         File tempJar = new File(destJar.getParent(), destJar.getName() + ".tmp");
@@ -174,16 +165,16 @@ public class EmbeddingMojo
         Files.delete(destJar.toPath());
         Files.move(tempJar.toPath(), destJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-        getLog().info("Embedded artifact into aggregated repo: " + destJar.getAbsolutePath());
+        getLog().info("Embedded metadata into: " + destJar.getAbsolutePath());
+        
+        // This makes Maven packaging plugins use the embedded JAR
+        artifact.setFile(destJar);
+        getLog().debug("Updated artifact reference: " + artifact.getId() + " -> " + destJar.getAbsolutePath());
     }
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         Set<Artifact> dependencyArtifacts = project.getArtifacts();
-
-        // Shared repository for all modules
-        File aggregatedRepoRoot = getAggregatedRepoRoot();
-        aggregatedRepoRoot.mkdirs();
 
         getLog().info("Embedding metadata into compiled classes for module: " + project.getArtifactId());
         try {
@@ -197,11 +188,12 @@ public class EmbeddingMojo
         getLog().info("Processing dependencies");
         for (Artifact artifact : dependencyArtifacts) {
             try {
-                embedArtifactIntoRepo(artifact, aggregatedRepoRoot);
+                File classportFilesDir = new File(project.getBuild().getDirectory(), "classport-files");
+                classportFilesDir.mkdirs();
+                embedArtifactIntoRepo(artifact, classportFilesDir);
             } catch (IOException e) {
                 getLog().error("Failed to embed metadata for " + artifact + ": " + e);
             }
-
         }
     }
 
@@ -215,7 +207,7 @@ public class EmbeddingMojo
                 .collect(Collectors.toList()).contains(aId);
 
         return new ClassportHelper().getInstance(
-                getArtifactLongId(project.getArtifact()), // TODO: Make into a constant
+                getArtifactLongId(project.getArtifact()),
                 isDirectDependency,
                 aId,
                 artifact.getArtifactId(),
